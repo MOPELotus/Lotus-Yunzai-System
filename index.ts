@@ -23,6 +23,27 @@ type RuntimeDiagnostics = (context: StatisticsContext) => {
   readonly accounts: readonly { id: number; seconds: number }[];
   readonly plugins: readonly { name: string; milliseconds: number }[];
 };
+interface RuntimeVersion {
+  readonly version?: string;
+  readonly revision?: string;
+  readonly modified?: boolean;
+  readonly modules: readonly { name: string; revision: string }[];
+}
+
+function versionSummary(runtime?: RuntimeVersion): string {
+  const version = runtime?.version || "开发构建";
+  const revision = runtime?.revision?.slice(0, 12) || "提交号不可用";
+  const modified = runtime?.modified ? "（有本地修改）" : "";
+  const modules = runtime?.modules.map(({ name, revision }) => `${name}　${revision.slice(0, 12)}`) ?? [];
+  return [
+    "Lotus-Yunzai 版本",
+    `宿主版本　${version}`,
+    `宿主提交　${revision}${modified}`,
+    "",
+    "内置模块",
+    ...(modules.length ? modules : ["暂无内置模块版本记录"]),
+  ].join("\n");
+}
 
 function uptime(seconds: number): string {
   const elapsed = Math.floor(seconds);
@@ -31,9 +52,10 @@ function uptime(seconds: number): string {
   return `${hours ? `${hours} 小时 ` : ""}${minutes ? `${minutes} 分钟 ` : ""}${elapsed % 60} 秒`;
 }
 
-export function createModule({ messageStatistics, runtimeDiagnostics }: {
+export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion }: {
   readonly messageStatistics?: Statistics;
   readonly runtimeDiagnostics?: RuntimeDiagnostics;
+  readonly runtimeVersion?: RuntimeVersion;
 }) {
   function withRuntime(summary: string, context?: StatisticsContext): string {
     if (!runtimeDiagnostics || context?.isMaster !== true) return summary;
@@ -62,11 +84,13 @@ export function createModule({ messageStatistics, runtimeDiagnostics }: {
         return args.trim() ? summary : withRuntime(summary, context);
       },
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
+      "#版本": () => versionSummary(runtimeVersion),
       "#帮助": () => [
         "Lotus-Yunzai 系统指令",
         "#状态 查看宿主运行状态",
         "#统计 查看消息收发量",
         "#帮助 查看系统指令",
+        "#版本 查看宿主和内置模块版本",
       ].join("\n"),
       "#诊断": (_args?: string, context?: StatisticsContext) => withRuntime(diagnostics(), context),
     },
