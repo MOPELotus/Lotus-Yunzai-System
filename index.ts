@@ -10,14 +10,32 @@ function diagnostics(): string {
   ].join("\n");
 }
 
-export default {
-  commands: {
-    "#状态": () => `Lotus-Yunzai 正在运行（Bun ${Bun.version}）`,
-    "#帮助": () => [
-      "Lotus-Yunzai 系统指令",
-      "#状态 查看宿主运行状态",
-      "#帮助 查看系统指令",
-    ].join("\n"),
-    "#诊断": diagnostics,
-  },
-};
+interface StatisticsContext {
+  readonly message_type: "group" | "private" | "terminal";
+  readonly isMaster: boolean;
+  readonly self_id?: number;
+  readonly user_id?: number;
+  readonly group_id?: number;
+}
+
+type Statistics = (argumentsText: string, context: StatisticsContext) => Promise<string>;
+
+export function createModule({ messageStatistics }: { readonly messageStatistics?: Statistics }) {
+  return {
+    commands: {
+      "#状态": (args: string, context: StatisticsContext) => messageStatistics &&
+          /^(?:机器人|用户|群|消息|日期)(?:\s|$)/u.test(args)
+        ? messageStatistics(args, context) : `Lotus-Yunzai 正在运行（Bun ${Bun.version}）`,
+      "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
+      "#帮助": () => [
+        "Lotus-Yunzai 系统指令",
+        "#状态 查看宿主运行状态",
+        "#统计 查看消息收发量",
+        "#帮助 查看系统指令",
+      ].join("\n"),
+      "#诊断": diagnostics,
+    },
+  };
+}
+
+export default createModule({});
