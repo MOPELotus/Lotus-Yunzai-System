@@ -1,0 +1,8 @@
+{
+  "name": "@lotus-yunzai/system",
+  "private": true,
+  "type": "module",
+  "lotusYunzai": {
+    "entry": "./index.ts"
+  }
+}
