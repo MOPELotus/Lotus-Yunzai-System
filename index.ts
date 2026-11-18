@@ -20,7 +20,7 @@ interface StatisticsContext {
 
 type Statistics = (argumentsText: string, context: StatisticsContext) => Promise<string>;
 type RuntimeDiagnostics = (context: StatisticsContext) => {
-  readonly accounts: readonly { id: number; seconds: number }[];
+  readonly accounts: readonly { id: number; seconds: number; adapter?: "milky" }[];
   readonly plugins: readonly { name: string; milliseconds: number }[];
 };
 interface RuntimeVersion {
@@ -61,7 +61,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (!runtimeDiagnostics || context?.isMaster !== true) return summary;
 
     const { accounts, plugins } = runtimeDiagnostics(context);
-    const accountRows = accounts.map(({ id, seconds }) => `${id}　${uptime(seconds)}`);
+    const accountRows = accounts.map(({ id, seconds, adapter }) =>
+      `${id}　${adapter === "milky" ? "Milky　" : ""}${uptime(seconds)}`);
     const pluginRows = plugins.map(({ name, milliseconds }) => `${name}　${Math.round(milliseconds)} ms`);
     return [
       summary,
