@@ -230,9 +230,20 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     }
   }
 
+  async function fallback(message: string, context: OriginalPhotoContext) {
+    const input = message.trim();
+    if (input === "椰奶状态") return status("", context);
+    if (input === "状态") {
+      const config = await readStatusConfig();
+      if (config?.defaultState === true) return status("", context);
+      return;
+    }
+    return originalPhoto(input, context);
+  }
+
   return {
     dispose: async () => (await monitor)?.dispose(),
-    fallback: originalPhoto,
+    fallback,
     fallbackFeatures: () => ["[system] 状态"],
     commands: {
       "#状态": status,

@@ -57,3 +57,32 @@ test("本地椰奶主题引用不得通过符号链接读取主题目录外的�
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("裸旧状态按全局 defaultState 分流，核心状态统计和其它消息保留原路由", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lotus-status-config-"));
+  const config = join(directory, "state.yaml");
+  const previous = process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+  process.env.LOTUS_SYSTEM_STATUS_CONFIG = config;
+  try {
+    const { commands, fallback } = createModule({
+      async messageStatistics(args) { return `统计：${args}`; },
+    });
+    const group = { message_type: "group", isMaster: false } as const;
+    expect(await fallback("状态", group)).toBeUndefined();
+    expect(await fallback("椰奶状态", group)).toContain("Lotus-Yunzai 正在运行");
+    await writeFile(config, "defaultState: false\n");
+    expect(await fallback("状态", group)).toBeUndefined();
+    await writeFile(config, "defaultState: 'true'\n");
+    expect(await fallback("状态", group)).toBeUndefined();
+    await writeFile(config, "defaultState: true\n");
+    expect(await fallback("状态", group)).toContain("Lotus-Yunzai 正在运行");
+    expect(await fallback("状态 用户 42", group)).toBeUndefined();
+    expect(await fallback("椰奶状态pro", group)).toBeUndefined();
+    expect(await fallback("#状态帮助", group)).toBeUndefined();
+    expect(await commands["#状态"]("用户 42", group)).toBe("统计：用户 42");
+  } finally {
+    if (previous === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+    else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
