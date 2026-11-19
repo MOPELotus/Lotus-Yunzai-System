@@ -38,7 +38,7 @@ export interface StatusCardModel extends RuntimeStatusSnapshot {
 const GiB = 1024 ** 3;
 const gib = (bytes: number) => (bytes / GiB).toFixed(2) + " GiB";
 
-function cpuTimes(cores: ReturnType<typeof cpus>) {
+export function cpuTimes(cores = cpus()) {
   let idle = 0;
   let total = 0;
   for (const { times } of cores) {
@@ -55,20 +55,35 @@ async function memoryInfo() {
     .map(([, key, value]) => [key!, Number(value) * 1024]));
 }
 
+export function cpuPercent(before: ReturnType<typeof cpuTimes>, after: ReturnType<typeof cpuTimes>) {
+  const interval = after.total - before.total;
+  const idle = after.idle - before.idle;
+  if (interval > 0 && idle >= 0 && idle <= interval) return (1 - idle / interval) * 100;
+}
+
+function usedMemory(total: number, usedWithCache: number, memory: ReadonlyMap<string, number>) {
+  const available = memory.get("MemAvailable");
+  return available !== undefined && available >= 0 && available <= total ? total - available : usedWithCache;
+}
+
+export async function activeMemory() {
+  const total = totalmem();
+  const usedWithCache = total - freemem();
+  const used = usedMemory(total, usedWithCache, await memoryInfo());
+  if (total > 0 && used >= 0 && used <= total) return used;
+}
+
 export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: boolean): Promise<StatusCardModel> {
   const cores = cpus();
   const before = cpuTimes(cores);
   const [memory] = await Promise.all([memoryInfo(), setTimeout(120)]);
-  const after = cpuTimes(cpus());
-  const interval = after.total - before.total;
+  const load = cpuPercent(before, cpuTimes());
   const total = totalmem();
   const usedWithCache = total - freemem();
-  const reportedAvailable = memory.get("MemAvailable");
-  const used = reportedAvailable !== undefined && reportedAvailable >= 0 && reportedAvailable <= total
-    ? total - reportedAvailable : usedWithCache;
+  const used = usedMemory(total, usedWithCache, memory);
   const resources: StatusResource[] = [];
-  if (interval > 0 && after.idle >= before.idle && after.idle - before.idle <= interval) {
-    resources.push({ title: "CPU", percent: (1 - (after.idle - before.idle) / interval) * 100,
+  if (load !== undefined) {
+    resources.push({ title: "CPU", percent: load,
       ...(pro && { detail: cores[0]?.model, info: [`${cores.length} 核`] }) });
   }
   if (total > 0 && used >= 0 && used <= total) {

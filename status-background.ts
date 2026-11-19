@@ -40,20 +40,26 @@ async function readPhoto(directory: string, name: string) {
   if (file) return readFile(file);
 }
 
-export async function readStatusBackground(
+export async function readStatusConfig(
   source = process.env.LOTUS_SYSTEM_STATUS_CONFIG || defaultConfig,
-): Promise<string | undefined> {
+): Promise<Record<string, unknown> | undefined> {
   try {
     const file = Bun.file(source);
-    if (!await file.exists()) return "random";
+    if (!await file.exists()) return {};
     if (file.size > 64 * 1024) return;
     const data: unknown = Bun.YAML.parse(await file.text());
-    const value = object(object(data)?.style)?.backdropDefault;
-    if (value === undefined || value === "random") return "random";
-    if (isPhoto(value)) return value;
+    return object(data) ?? {};
   } catch {
     return;
   }
+}
+
+export async function readStatusBackground(source?: string | URL): Promise<string | undefined> {
+  const config = await readStatusConfig(source);
+  if (!config) return;
+  const value = object(config.style)?.backdropDefault;
+  if (value === undefined || value === "random") return "random";
+  if (isPhoto(value)) return value;
 }
 
 export async function loadStatusBackground(root: string, selection: string, pick: (length: number) => number = randomInt) {

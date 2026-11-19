@@ -1,12 +1,15 @@
 import { collectStatusCard, type RuntimeStatusSnapshot } from "./status-card-data.ts";
 import { loadStatusCardTheme, renderStatusCard, statusCardThemeDirectory } from "./status-card-renderer.ts";
-import { readStatusOriginal } from "./status-background.ts";
+import { readStatusConfig, readStatusOriginal } from "./status-background.ts";
 import { createStatusPhotoLedger, type StatusPhotoStorage } from "./status-photo-ledger.ts";
+import { createStatusMonitor, statusMonitorSettings, type StatusMonitorStorage } from "./status-monitor.ts";
+import { loadStatusMonitorTheme, renderStatusMonitor, statusMonitorText } from "./status-monitor-renderer.ts";
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
 
 export type { RuntimeStatusAccount, RuntimeStatusSnapshot } from "./status-card-data.ts";
 export type { StatusPhotoStorage } from "./status-photo-ledger.ts";
+export type { StatusMonitorStorage } from "./status-monitor.ts";
 export type { RuntimeVersion, VersionCardEntry, VersionCardRelease } from "./version-card-data.ts";
 
 function diagnostics(): string {
@@ -80,15 +83,19 @@ function uptime(seconds: number): string {
   return `${hours ? `${hours} 小时 ` : ""}${minutes ? `${minutes} 分钟 ` : ""}${elapsed % 60} 秒`;
 }
 
-export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus, statusPhotoStorage, signal }: {
+export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus,
+  statusPhotoStorage, statusMonitorStorage, signal }: {
   readonly messageStatistics?: Statistics;
   readonly runtimeDiagnostics?: RuntimeDiagnostics;
   readonly runtimeVersion?: RuntimeVersion;
   readonly runtimeStatus?: RuntimeStatus;
   readonly statusPhotoStorage?: StatusPhotoStorage;
+  readonly statusMonitorStorage?: StatusMonitorStorage;
   readonly signal?: AbortSignal;
 }) {
   const photos = createStatusPhotoLedger(statusPhotoStorage, signal);
+  const monitor = signal ? readStatusConfig().then(config =>
+    createStatusMonitor(statusMonitorSettings(config), { storage: statusMonitorStorage, signal })) : undefined;
   function withRuntime(summary: string, context?: DiagnosticsContext): string {
     if (!context || (context.isMaster !== true && context.runtimeDiagnosticsScope !== "milky")) return summary;
 
@@ -170,6 +177,27 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return statusCard(context, true, () => withRuntime(diagnostics(), context));
   }
 
+  async function statusMonitor(args = "", context?: DiagnosticsContext) {
+    if (args.trim()) return "用法：#监控。";
+    const snapshot = await (await monitor)?.snapshot();
+    const samples = snapshot?.samples ?? [];
+    const enabled = snapshot?.enabled;
+    const fallback = () => statusMonitorText(samples, enabled);
+    if (!samples.length || !context || context.message_type === "terminal" || rendering) return fallback();
+    rendering = true;
+    try {
+      const theme = await loadStatusMonitorTheme();
+      if (!theme || signal?.aborted) return fallback();
+      const result = await renderStatusMonitor(samples, theme, enabled);
+      console.log(`[渲染] 运行监控 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+      return { type: "image" as const, file: result.png };
+    } catch {
+      return fallback();
+    } finally {
+      rendering = false;
+    }
+  }
+
   async function versionCard() {
     try {
       const theme = await loadVersionCardTheme();
@@ -203,6 +231,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   }
 
   return {
+    dispose: async () => (await monitor)?.dispose(),
     fallback: originalPhoto,
     fallbackFeatures: () => ["[system] 状态"],
     commands: {
@@ -210,6 +239,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#椰奶状态": status,
       "#状态pro": proStatus,
       "#椰奶状态pro": proStatus,
+      "#监控": statusMonitor,
+      "#椰奶监控": statusMonitor,
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
@@ -217,6 +248,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
         "Lotus-Yunzai 系统指令",
         "#状态 查看宿主运行状态",
         "#状态pro 主人私聊查看详细状态",
+        "#监控 查看 CPU 和 RAM 采样趋势",
         "#统计 查看消息收发量",
         "#帮助 查看系统指令",
         "#版本 查看宿主和内置模块版本",

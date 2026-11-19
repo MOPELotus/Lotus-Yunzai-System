@@ -90,13 +90,14 @@ function rounded(ctx: Context, x: number, y: number, width: number, height: numb
   ctx.roundRect(x, y, width, height, radius);
 }
 
-function background(ctx: Context, theme: Theme, height: number) {
-  const ratio = Math.max(logicalWidth / theme.background.width, height / theme.background.height);
+export function background(ctx: Context, theme: Pick<Theme, "background">, height: number, pageWidth = logicalWidth) {
+  const ratio = Math.max(pageWidth / theme.background.width, height / theme.background.height);
   const width = theme.background.width * ratio;
-  ctx.drawImage(theme.background, (logicalWidth - width) / 2, 0, width, theme.background.height * ratio);
+  ctx.drawImage(theme.background, (pageWidth - width) / 2, 0, width, theme.background.height * ratio);
 }
 
-function glass(ctx: Context, theme: Theme, height: number, x: number, y: number, width: number, boxHeight: number) {
+export function glass(ctx: Context, theme: Pick<Theme, "background">, height: number,
+  x: number, y: number, width: number, boxHeight: number, pageWidth = logicalWidth) {
   ctx.save();
   rounded(ctx, x, y, width, boxHeight, 18);
   ctx.shadowOffsetY = 8;
@@ -110,7 +111,7 @@ function glass(ctx: Context, theme: Theme, height: number, x: number, y: number,
   rounded(ctx, x, y, width, boxHeight, 18);
   ctx.clip();
   ctx.filter = "blur(14px)";
-  background(ctx, theme, height);
+  background(ctx, theme, height, pageWidth);
   ctx.filter = "none";
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.fillRect(x, y, width, boxHeight);
