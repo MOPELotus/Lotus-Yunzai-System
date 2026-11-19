@@ -248,7 +248,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
         "Lotus-Yunzai 系统指令",
         "#状态 查看宿主运行状态",
         "#状态pro 主人私聊查看详细状态",
-        "#监控 查看 CPU 和 RAM 采样趋势",
+        "#监控 查看 CPU、RAM、网络与磁盘趋势",
         "#统计 查看消息收发量",
         "#帮助 查看系统指令",
         "#版本 查看宿主和内置模块版本",

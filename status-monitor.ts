@@ -1,4 +1,5 @@
 import { activeMemory, cpuPercent, cpuTimes } from "./status-card-data.ts";
+import { readStatusIoCounters, statusIoRates, type Rates, type StatusIoCounters } from "./status-monitor-io.ts";
 
 export interface StatusMonitorStorage {
   get(key: string): Promise<string | null | undefined>;
@@ -9,6 +10,8 @@ export interface StatusMonitorSample {
   readonly at: number;
   readonly cpu?: number;
   readonly ram?: number;
+  readonly network?: Rates;
+  readonly disk?: Rates;
 }
 
 export interface StatusMonitorSettings {
@@ -41,6 +44,13 @@ export function statusMonitorSettings(config?: Record<string, unknown>): StatusM
   };
 }
 
+function rates(value: unknown): Rates | undefined {
+  if (Array.isArray(value) && value.length === 2 &&
+      value.every(item => typeof item === "number" && Number.isFinite(item) && item >= 0 && item <= Number.MAX_SAFE_INTEGER)) {
+    return [value[0], value[1]];
+  }
+}
+
 function sample(value: unknown, now: number): StatusMonitorSample | undefined {
   const row = object(value);
   if (typeof row?.at !== "number" || !Number.isSafeInteger(row.at) ||
@@ -48,11 +58,15 @@ function sample(value: unknown, now: number): StatusMonitorSample | undefined {
   const cpu = typeof row.cpu === "number" && Number.isFinite(row.cpu) && row.cpu >= 0 && row.cpu <= 100
     ? row.cpu : undefined;
   const ram = typeof row.ram === "number" && Number.isSafeInteger(row.ram) && row.ram >= 0 ? row.ram : undefined;
-  if (cpu !== undefined || ram !== undefined) return { at: row.at, cpu, ram };
+  const network = rates(row.network);
+  const disk = rates(row.disk);
+  if (cpu !== undefined || ram !== undefined || network || disk) {
+    return { at: row.at, cpu, ram, ...(network && { network }), ...(disk && { disk }) };
+  }
 }
 
 function parseHistory(raw: string | null | undefined, now: number, limit: number) {
-  if (!raw || raw.length > 128 * 1024) return [];
+  if (!raw || raw.length > 192 * 1024) return [];
   try {
     const data: unknown = JSON.parse(raw);
     if (!Array.isArray(data) || data.length > maxSamples) return [];
@@ -68,13 +82,14 @@ function parseHistory(raw: string | null | undefined, now: number, limit: number
 }
 
 export function createStatusMonitor(settings: StatusMonitorSettings, {
-  storage, signal, now = Date.now, readCpu = cpuTimes, readRam = activeMemory,
+  storage, signal, now = Date.now, readCpu = cpuTimes, readRam = activeMemory, readIo = readStatusIoCounters,
 }: {
   readonly storage?: StatusMonitorStorage;
   readonly signal?: AbortSignal;
   readonly now?: () => number;
   readonly readCpu?: () => ReturnType<typeof cpuTimes>;
   readonly readRam?: () => Promise<number | undefined>;
+  readonly readIo?: () => Promise<StatusIoCounters>;
 } = {}) {
   const persistent = settings.persist ? storage : undefined;
   let rows: StatusMonitorSample[] = [];
@@ -82,6 +97,8 @@ export function createStatusMonitor(settings: StatusMonitorSettings, {
   let pending: Promise<void> | undefined;
   let stopped = signal?.aborted ?? false;
   let previous = settings.enabled && !stopped ? readCpu() : undefined;
+  const readCounters = (): Promise<StatusIoCounters> => Promise.resolve().then(readIo).catch(() => ({}));
+  let previousIo = previous ? readCounters() : undefined;
 
   const ready = persistent && !stopped
     ? Promise.resolve().then(() => persistent.get(historyKey)).then(raw => {
@@ -98,9 +115,13 @@ export function createStatusMonitor(settings: StatusMonitorSettings, {
     const current = readCpu();
     const cpu = previous && cpuPercent(previous, current);
     previous = current;
-    const ram = await readRam().catch(() => undefined);
+    const currentIo = readCounters();
+    const [ram, beforeIo, afterIo] = await Promise.all([readRam().catch(() => undefined), previousIo, currentIo]);
+    previousIo = currentIo;
     if (stopped) return;
-    const row = sample({ at, cpu, ram }, at);
+    const network = statusIoRates(beforeIo?.network, afterIo.network);
+    const disk = statusIoRates(beforeIo?.disk, afterIo.disk);
+    const row = sample({ at, cpu, ram, network, disk }, at);
     if (!row || (rows.at(-1)?.at ?? 0) >= row.at) return;
     rows = [...retained(at), row].slice(-settings.limit);
     await persistent?.set(historyKey, JSON.stringify(rows), statusMonitorTtl).catch(() => {});
@@ -137,7 +158,7 @@ export function createStatusMonitor(settings: StatusMonitorSettings, {
     },
     async dispose() {
       stop();
-      await Promise.allSettled([ready, pending]);
+      await Promise.allSettled([ready, pending, previousIo]);
     },
   };
 }

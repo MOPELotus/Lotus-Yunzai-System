@@ -9,9 +9,10 @@ import type { StatusMonitorSample } from "./status-monitor.ts";
 
 // Geometry follows Yenai-Plugin fe42a6f, resources/state/monitor.html and css/index.css.
 const width = 650;
-const height = 846;
+const height = 1530;
 const scale = 1.4;
 const lineColor = "#2ec7c9";
+const secondaryColor = "#b6a2de";
 const originalFont = '"Noto Sans CJK SC", sans-serif';
 const GiB = 1024 ** 3;
 const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -56,18 +57,42 @@ function bytes(value: number) {
 export function statusMonitorText(samples: readonly StatusMonitorSample[], enabled = true) {
   const latestCpu = samples.findLast(row => row.cpu !== undefined)?.cpu;
   const latestRam = samples.findLast(row => row.ram !== undefined)?.ram;
+  const latest = samples.at(-1);
+  const formatRate = (value: number) => bytes(value) + "/s";
+  const throughput = (key: "network" | "disk", first: string, second: string) => {
+    const rates = latest?.[key];
+    if (rates) return `${first} ${formatRate(rates[0])}　${second} ${formatRate(rates[1])}`;
+    return samples.some(row => row[key]) ? "最近一次采样无有效数据" : "暂无可核验采样";
+  };
   return [
     "Lotus-Yunzai 监控",
     ...(samples.length ? [
       `有效采样　${samples.length} 次`,
       `CPU　${latestCpu === undefined ? "暂无采样" : latestCpu.toFixed(1) + "%"}`,
       `RAM　${latestRam === undefined ? "暂无采样" : bytes(latestRam)}`,
+      `网络　${throughput("network", "上行", "下行")}`,
+      `磁盘　${throughput("disk", "读", "写")}`,
     ] : enabled ? ["等待首次采样。"] : []),
     ...(!enabled ? ["当前已关闭持续采样。"] : []),
   ].join("\n");
 }
 
 interface Point { readonly x: number; readonly y: number; readonly value: number }
+interface Reading { readonly at: number; readonly value: number }
+interface Series {
+  readonly color: string;
+  readonly area: string;
+  readonly label?: string;
+  readonly segments: readonly (readonly Reading[])[];
+}
+interface Peak {
+  readonly point: Point;
+  readonly color: string;
+  readonly label: string;
+  readonly radius: number;
+  readonly padding: number;
+  x: number;
+}
 
 function trace(ctx: Context, points: readonly Point[]) {
   const slopes = points.slice(1).map(({ x, y }, index) => {
@@ -125,38 +150,69 @@ function horizontalScale(ctx: Context, first: number, span: number, x: number, b
   }
 }
 
-function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonitorSample[], key: "cpu" | "ram", y: number) {
+function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonitorSample[],
+  key: "cpu" | "ram" | "network" | "disk", y: number) {
+  const io = key === "network" || key === "disk";
   glass(ctx, theme, height, 25, y, 600, 322, width);
   ctx.fillStyle = "#444";
   ctx.font = `bold 20px ${theme.body}`;
-  ctx.fillText(key.toUpperCase(), 41, y + 33);
-  const readings = samples.flatMap(sample => {
-    const value = sample[key];
-    return value === undefined ? [] : [{ at: sample.at, value }];
-  });
+  ctx.fillText(key === "network" ? "Network" : key === "disk" ? "disksIO" : key.toUpperCase(), 41, y + 33);
   ctx.font = `12px ${theme.body}`;
+
+  const colors = [lineColor, secondaryColor];
+  const areas = ["rgba(46,199,201,0.72)", "rgba(182,162,222,0.68)"];
+  const labels = key === "network" ? ["上行", "下行"] : key === "disk" ? ["读", "写"] : [];
+  const series: Series[] = [];
+  for (let index = 0; index < (io ? 2 : 1); index++) {
+    const segments: Reading[][] = [];
+    let current: Reading[] | undefined;
+    for (const sample of samples) {
+      const value = io ? sample[key]?.[index] : sample[key];
+      if (value === undefined) {
+        if (io) current = undefined;
+        continue;
+      }
+      if (!current) segments.push(current = []);
+      current.push({ at: sample.at, value });
+    }
+    series.push({ color: colors[index]!, area: areas[index]!, label: labels[index], segments });
+  }
+  if (io) {
+    drawRateLegend(ctx, series, y);
+    if (samples.some(row => row[key]) && !samples.at(-1)?.[key]) {
+      ctx.fillStyle = "#535866";
+      ctx.textAlign = "right";
+      ctx.fillText("最近采样缺失", 585, y + 28);
+      ctx.textAlign = "left";
+    }
+  }
+  const readings = series.flatMap(item => item.segments.flat());
   if (!readings.length) {
     ctx.textAlign = "center";
-    ctx.fillText("暂无采样", width / 2, y + 160);
+    ctx.fillStyle = "#535866";
+    ctx.fillText(io ? "暂无可核验的吞吐采样" : "暂无采样", width / 2, y + 160);
     ctx.textAlign = "left";
     return;
   }
   const max = Math.max(...readings.map(({ value }) => value));
-  const maxScale = key === "cpu" ? Math.max(10, Math.ceil(max / 10) * 10) :
+  const rateStep = Math.max(1, 10 ** Math.floor(Math.log10(Math.max(1, max) / 5)));
+  const maxScale = key === "cpu" ? Math.max(10, Math.ceil(max / 10) * 10) : io ?
+    rateStep * Math.max(5, Math.ceil(max / rateStep)) :
     max >= GiB ? Math.ceil(max / (GiB / 2)) * GiB / 2 : Math.max(1, max);
-  const division = key === "cpu" ? maxScale / 10 : 4;
-  const format = key === "cpu" ? (value: number) => value.toFixed(1) + "%" : bytes;
-  const left = 84;
+  const division = key === "cpu" ? maxScale / 10 : io ? 5 : 4;
+  const format = key === "cpu" ? (value: number) => value.toFixed(1) + "%" :
+    io ? (value: number) => bytes(value) + "/s" : bytes;
+  const left = io ? 111 : 84;
   const right = 585;
   const top = y + 71;
   const bottom = y + 291;
-  const first = readings[0]!.at;
-  const span = readings.at(-1)!.at - first;
-  const points = readings.map(({ at, value }): Point => ({
+  const first = Math.min(...readings.map(({ at }) => at));
+  const span = Math.max(...readings.map(({ at }) => at)) - first;
+  const plot = ({ at, value }: Reading): Point => ({
     x: span ? left + (at - first) / span * (right - left) : (left + right) / 2,
     y: bottom - value / maxScale * (bottom - top),
     value,
-  }));
+  });
 
   ctx.fillStyle = "#696f79";
   ctx.textAlign = "right";
@@ -172,25 +228,75 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
   }
   ctx.textAlign = "center";
   if (span) horizontalScale(ctx, first, span, left, bottom, right - left);
-  else ctx.fillText(second.format(first), points[0]!.x, bottom + 19);
+  else ctx.fillText(second.format(first), (left + right) / 2, bottom + 19);
 
+  const peaks: Peak[] = [];
+  for (const item of series) {
+    const groups = item.segments.map(segment => segment.map(plot));
+    for (const points of groups) drawRateLine(ctx, points, item, bottom, !io);
+    const points = groups.flat();
+    if (!points.length) continue;
+    const point = points.reduce((highest, next) => next.value > highest.value ? next : highest);
+    const label = format(point.value);
+    const halfText = ctx.measureText(label).width / 2 + 1;
+    const radius = io ? 17 : Math.max(15, halfText);
+    const padding = Math.max(radius, halfText);
+    const minX = (io ? left : point.y - 27 - radius < y + 37 ? 86 : 49) + padding;
+    const x = Math.max(minX, Math.min(607 - padding, point.x));
+    peaks.push({ point, color: item.color, label, radius, padding, x });
+  }
+  if (peaks.length === 2) {
+    const [first, second] = peaks.toSorted((a, b) => a.x - b.x) as [Peak, Peak];
+    const spacing = first.padding + second.padding + 6;
+    if (second.x - first.x < spacing && Math.abs(first.point.y - second.point.y) < 35) {
+      const center = (first.x + second.x) / 2;
+      first.x = Math.max(left + first.padding, Math.min(607 - second.padding - spacing, center - spacing / 2));
+      second.x = first.x + spacing;
+    }
+  }
+  for (const peak of peaks) drawPeak(ctx, peak);
+  ctx.textAlign = "left";
+}
+
+function drawRateLegend(ctx: Context, series: readonly Series[], y: number) {
+  const legendStart = width / 2 - 56;
+  for (const [index, item] of series.entries()) {
+    const x = legendStart + 64 * index;
+    const cy = y + 22;
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 12, cy);
+    ctx.lineTo(x + 12, cy);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x, cy, 5.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#fff";
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#333";
+    ctx.fillText(item.label!, x + 18, cy + 5);
+  }
+}
+
+function drawRateLine(ctx: Context, points: readonly Point[], series: Series, bottom: number, symbols: boolean) {
   if (points.length > 1) {
     ctx.beginPath();
     trace(ctx, points);
     ctx.lineTo(points.at(-1)!.x, bottom);
     ctx.lineTo(points[0]!.x, bottom);
     ctx.closePath();
-    ctx.fillStyle = "rgba(46,199,201,0.72)";
+    ctx.fillStyle = series.area;
     ctx.fill();
     ctx.beginPath();
     trace(ctx, points);
-    ctx.strokeStyle = lineColor;
+    ctx.strokeStyle = series.color;
     ctx.lineWidth = 2;
     ctx.stroke();
   }
-  if (points.length < 85) {
+  if (points.length === 1 || symbols && points.length < 85) {
     ctx.lineWidth = 2;
-    ctx.strokeStyle = lineColor;
+    ctx.strokeStyle = series.color;
     ctx.fillStyle = "#fff";
     for (const { x, y } of points) {
       ctx.beginPath();
@@ -200,24 +306,22 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
     }
   }
 
-  const peak = points.reduce((highest, next) => next.value > highest.value ? next : highest);
-  const peakLabel = format(peak.value);
-  const marker = Math.max(15, ctx.measureText(peakLabel).width / 2 + 1);
-  const center = peak.y - 27;
-  const markerX = center - marker < y + 37 ? Math.max(peak.x, 86 + marker) : peak.x;
+}
+
+function drawPeak(ctx: Context, { point, label, color, radius: marker, x: markerX }: Peak) {
+  const center = point.y - 27;
   ctx.beginPath();
   ctx.moveTo(markerX - marker * .68, center + 11);
-  ctx.lineTo(peak.x, peak.y - 4);
+  ctx.lineTo(point.x, point.y - 4);
   ctx.lineTo(markerX + marker * .68, center + 11);
   ctx.closePath();
-  ctx.fillStyle = lineColor;
+  ctx.fillStyle = color;
   ctx.fill();
   ctx.beginPath();
   ctx.arc(markerX, center, marker, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#242c36";
-  ctx.fillText(peakLabel, markerX, center + 4);
-  ctx.textAlign = "left";
+  ctx.fillText(label, markerX, center + 4);
 }
 
 export function renderStatusMonitor(samples: readonly StatusMonitorSample[], theme: MonitorTheme, enabled = true) {
@@ -232,15 +336,17 @@ export function renderStatusMonitor(samples: readonly StatusMonitorSample[], the
     ctx.font = `36px ${theme.title}`;
     ctx.fillText("Lotus-Yunzai 监控", 35, 58);
     ctx.font = `16px ${theme.body}`;
-    ctx.fillText(enabled ? "CPU & RAM" : "CPU & RAM　采样已暂停", 35, 87);
+    ctx.fillText(enabled ? "CPU & RAM & Network & DisksIO" : "CPU & RAM & Network & DisksIO　采样已暂停", 35, 87);
     ctx.shadowColor = "transparent";
 
     chart(ctx, theme, samples, "cpu", 122);
     chart(ctx, theme, samples, "ram", 464);
+    chart(ctx, theme, samples, "network", 806);
+    chart(ctx, theme, samples, "disk", 1148);
     ctx.textAlign = "center";
     ctx.font = `14px ${theme.body}`;
     ctx.shadowColor = "#000";
     ctx.fillStyle = "#fff";
-    ctx.fillText("Created By Lotus-Yunzai", width / 2 + 5, 822);
+    ctx.fillText("Created By Lotus-Yunzai", width / 2 + 5, 1506);
   }, "gpu");
 }
