@@ -204,18 +204,19 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
   const peakLabel = format(peak.value);
   const marker = Math.max(15, ctx.measureText(peakLabel).width / 2 + 1);
   const center = peak.y - 27;
+  const markerX = center - marker < y + 37 ? Math.max(peak.x, 86 + marker) : peak.x;
   ctx.beginPath();
-  ctx.moveTo(peak.x - marker * .68, center + 11);
+  ctx.moveTo(markerX - marker * .68, center + 11);
   ctx.lineTo(peak.x, peak.y - 4);
-  ctx.lineTo(peak.x + marker * .68, center + 11);
+  ctx.lineTo(markerX + marker * .68, center + 11);
   ctx.closePath();
   ctx.fillStyle = lineColor;
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(peak.x, center, marker, 0, Math.PI * 2);
+  ctx.arc(markerX, center, marker, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = "#242c36";
-  ctx.fillText(peakLabel, peak.x, center + 4);
+  ctx.fillText(peakLabel, markerX, center + 4);
   ctx.textAlign = "left";
 }
 
