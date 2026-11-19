@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { renderPng } from "@lotus-yunzai/skia";
 import { Canvas, type CanvasRenderingContext2D as Context, type Image } from "skia-canvas";
 import { loadCardFont, loadCardImage } from "./local-card-assets.ts";
-import { loadStatusBackground, readStatusBackground } from "./status-background.ts";
+import { loadStatusBackground, readStatusBackground, type StatusPhoto } from "./status-background.ts";
 import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./status-card-data.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
@@ -20,6 +20,7 @@ const icons = [
 type Icon = typeof icons[number];
 interface Theme {
   readonly background: Image;
+  readonly photo: StatusPhoto;
   readonly avatar: Image;
   readonly icons: ReadonlyMap<Icon, Image>;
   readonly font: string;
@@ -44,7 +45,7 @@ export async function loadStatusCardTheme(directory = statusCardThemeDirectory()
     ]);
     if (!avatar || entries.some(([, image]) => image === undefined)) continue;
     const family = font ? `"${font}", "Noto Sans CJK SC", sans-serif` : '"PingFang SC", "Noto Sans CJK SC", sans-serif';
-    return { background, avatar, font: family,
+    return { background: background.image, photo: background.photo, avatar, font: family,
       icons: new Map(entries.filter((entry): entry is readonly [Icon, Image] => entry[1] !== undefined)) };
   }
 }

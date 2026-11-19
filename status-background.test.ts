@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadStatusBackground, readStatusBackground } from "./status-background.ts";
+import { loadStatusBackground, readStatusBackground, readStatusOriginal } from "./status-background.ts";
 
 const onePixel = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQI12P4z8DwHwAFAAH/cpxSZwAAAABJRU5ErkJggg==", "base64",
@@ -42,13 +42,37 @@ test("随机可选择不同图片，损坏和越界引用被舍弃，指定不�
     await writeFile(join(backgrounds, "z-blue.png"), twoPixels);
     await writeFile(join(root, "outside.png"), onePixel);
     await symlink(join(root, "outside.png"), join(backgrounds, "x-escape.png"));
-    expect((await loadStatusBackground(root, "b-red.png"))?.width).toBe(1);
-    expect((await loadStatusBackground(root, "z-blue.png"))?.width).toBe(2);
-    expect((await loadStatusBackground(root, "random", () => 0))?.width).toBe(1);
-    expect((await loadStatusBackground(root, "random", count => count - 1))?.width).toBe(2);
+    expect((await loadStatusBackground(root, "b-red.png"))?.image.width).toBe(1);
+    expect((await loadStatusBackground(root, "z-blue.png"))?.image.width).toBe(2);
+    expect((await loadStatusBackground(root, "random", () => 0))?.image.width).toBe(1);
+    expect((await loadStatusBackground(root, "random", count => count - 1))?.image.width).toBe(2);
     expect(await loadStatusBackground(root, "x-escape.png")).toBeUndefined();
     expect(await loadStatusBackground(root, "missing.jpg")).toBeUndefined();
     expect(await loadStatusBackground(root, "../outside.png")).toBeUndefined();
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("原图读取只返回当时选用的照片字节，换文件、移出目录或不匹配的哈希时拒绝", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lotus-status-original-"));
+  try {
+    const root = join(directory, "theme");
+    const backgrounds = join(root, "resources/state/img/bg");
+    await mkdir(backgrounds, { recursive: true });
+    const file = join(backgrounds, "photo.png");
+    await writeFile(file, twoPixels);
+    const selection = await loadStatusBackground(join(root, "resources"), "photo.png");
+    if (!selection) throw new Error("原图夹具无效。");
+    expect(await readStatusOriginal(root, selection.photo)).toEqual(twoPixels);
+    expect(await readStatusOriginal(root, { ...selection.photo, name: "../photo.png" })).toBeUndefined();
+    await writeFile(file, onePixel);
+    expect(await readStatusOriginal(root, selection.photo)).toBeUndefined();
+    await rm(file);
+    const elsewhere = join(directory, "unauthorized.png");
+    await writeFile(elsewhere, twoPixels);
+    await symlink(elsewhere, file);
+    expect(await readStatusOriginal(root, selection.photo)).toBeUndefined();
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

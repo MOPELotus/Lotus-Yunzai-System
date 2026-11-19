@@ -1,9 +1,12 @@
 import { collectStatusCard, type RuntimeStatusSnapshot } from "./status-card-data.ts";
-import { loadStatusCardTheme, renderStatusCard } from "./status-card-renderer.ts";
+import { loadStatusCardTheme, renderStatusCard, statusCardThemeDirectory } from "./status-card-renderer.ts";
+import { readStatusOriginal } from "./status-background.ts";
+import { createStatusPhotoLedger, type StatusPhotoStorage } from "./status-photo-ledger.ts";
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
 
 export type { RuntimeStatusAccount, RuntimeStatusSnapshot } from "./status-card-data.ts";
+export type { StatusPhotoStorage } from "./status-photo-ledger.ts";
 export type { RuntimeVersion, VersionCardEntry, VersionCardRelease } from "./version-card-data.ts";
 
 function diagnostics(): string {
@@ -27,7 +30,20 @@ interface StatisticsContext {
 }
 
 interface DiagnosticsContext extends StatisticsContext {
+  readonly adapter?: "milky";
+  readonly message_id?: number;
+  readonly runtimeStatusScope?: "onebot" | "milky" | "terminal";
   readonly runtimeDiagnosticsScope?: "milky";
+  readonly isDelegated?: boolean;
+  readonly privateCredentialSignal?: AbortSignal;
+}
+
+interface OriginalPhotoContext extends DiagnosticsContext {
+  readonly reply_id?: string | number;
+  readonly lookupReply?: () => Promise<{
+    readonly user_id: number;
+    readonly message: readonly { readonly type: string }[];
+  } | undefined>;
 }
 
 type Statistics = (argumentsText: string, context: StatisticsContext) => Promise<string>;
@@ -64,12 +80,15 @@ function uptime(seconds: number): string {
   return `${hours ? `${hours} 小时 ` : ""}${minutes ? `${minutes} 分钟 ` : ""}${elapsed % 60} 秒`;
 }
 
-export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus }: {
+export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus, statusPhotoStorage, signal }: {
   readonly messageStatistics?: Statistics;
   readonly runtimeDiagnostics?: RuntimeDiagnostics;
   readonly runtimeVersion?: RuntimeVersion;
   readonly runtimeStatus?: RuntimeStatus;
+  readonly statusPhotoStorage?: StatusPhotoStorage;
+  readonly signal?: AbortSignal;
 }) {
+  const photos = createStatusPhotoLedger(statusPhotoStorage, signal);
   function withRuntime(summary: string, context?: DiagnosticsContext): string {
     if (!context || (context.isMaster !== true && context.runtimeDiagnosticsScope !== "milky")) return summary;
 
@@ -121,7 +140,13 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       const model = await collectStatusCard(snapshot, pro);
       const result = await renderStatusCard(model, theme);
       console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
-      return { type: "image" as const, file: result.png };
+      const message = { type: "image" as const, file: result.png };
+      if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;
+      const { photo } = theme;
+      return {
+        type: "delivery" as const, message,
+        onDelivered: (id: number) => photos.delivered(context, context.message_id, id, photo),
+      };
     } catch {
       return fallback();
     } finally {
@@ -159,7 +184,27 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return versionSummary(runtimeVersion);
   }
 
+  async function originalPhoto(message: string, context: OriginalPhotoContext) {
+    if (!/^#?原图$/u.test(message.trim()) || !context.lookupReply) return;
+    const record = await photos.find(context, context.reply_id);
+    if (!record) return;
+    try {
+      const quote = await context.lookupReply();
+      if (!quote || quote.user_id !== record.authoredBy ||
+          (record.card && !quote.message.some(part => part.type === "image"))) return;
+      if (signal?.aborted || context.privateCredentialSignal?.aborted) return;
+      const file = await readStatusOriginal(statusCardThemeDirectory(), record.photo);
+      if (file && !signal?.aborted && !context.privateCredentialSignal?.aborted) {
+        return { type: "image" as const, file };
+      }
+    } catch {
+      return;
+    }
+  }
+
   return {
+    fallback: originalPhoto,
+    fallbackFeatures: () => ["[system] 状态"],
     commands: {
       "#状态": status,
       "#椰奶状态": status,
