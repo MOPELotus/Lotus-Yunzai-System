@@ -1,7 +1,10 @@
 import { collectStatusCard, type RuntimeStatusSnapshot } from "./status-card-data.ts";
 import { loadStatusCardTheme, renderStatusCard } from "./status-card-renderer.ts";
+import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
+import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
 
 export type { RuntimeStatusAccount, RuntimeStatusSnapshot } from "./status-card-data.ts";
+export type { RuntimeVersion, VersionCardEntry, VersionCardRelease } from "./version-card-data.ts";
 
 function diagnostics(): string {
   const { rss, heapUsed, heapTotal } = process.memoryUsage();
@@ -34,18 +37,15 @@ type RuntimeDiagnostics = (context: DiagnosticsContext) => {
 } | undefined;
 type RuntimeStatus = (context: DiagnosticsContext, pro: boolean) =>
   RuntimeStatusSnapshot | Promise<RuntimeStatusSnapshot | undefined> | undefined;
-interface RuntimeVersion {
-  readonly version?: string;
-  readonly revision?: string;
-  readonly modified?: boolean;
-  readonly modules: readonly { name: string; revision: string }[];
-}
-
 function versionSummary(runtime?: RuntimeVersion): string {
   const version = runtime?.version || "开发构建";
   const revision = runtime?.revision?.slice(0, 12) || "提交号不可用";
   const modified = runtime?.modified ? "（有本地修改）" : "";
   const modules = runtime?.modules.map(({ name, revision }) => `${name}　${revision.slice(0, 12)}`) ?? [];
+  const changes = publicVersionChanges(runtime).flatMap(({ version, entries }) => [
+    "", `Lotus-Yunzai 版本 ${version}`,
+    ...entries.flatMap(({ title, notes }) => [`· ${title}`, ...(notes ?? []).map(note => `  ◦ ${note}`)]),
+  ]);
   return [
     "Lotus-Yunzai 版本",
     `宿主版本　${version}`,
@@ -53,6 +53,7 @@ function versionSummary(runtime?: RuntimeVersion): string {
     "",
     "内置模块",
     ...(modules.length ? modules : ["暂无内置模块版本记录"]),
+    ...changes,
   ].join("\n");
 }
 
@@ -144,6 +145,20 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return statusCard(context, true, () => withRuntime(diagnostics(), context));
   }
 
+  async function versionCard() {
+    try {
+      const theme = await loadVersionCardTheme();
+      if (theme) {
+        const result = await renderVersionCard(versionCardSections(runtimeVersion), theme);
+        console.log(`[渲染] 版本 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+        return { type: "image" as const, file: result.png };
+      }
+    } catch {
+      // The text and terminal report remain available when the local theme cannot be rendered.
+    }
+    return versionSummary(runtimeVersion);
+  }
+
   return {
     commands: {
       "#状态": status,
@@ -151,7 +166,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#状态pro": proStatus,
       "#椰奶状态pro": proStatus,
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
-      "#版本": () => versionSummary(runtimeVersion),
+      "#版本": (_args = "", context?: StatisticsContext) =>
+        runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
       "#帮助": () => [
         "Lotus-Yunzai 系统指令",
         "#状态 查看宿主运行状态",

@@ -1,9 +1,9 @@
-import { createHash } from "node:crypto";
-import { readFile, realpath, stat } from "node:fs/promises";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { realpath } from "node:fs/promises";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { renderPng } from "@lotus-yunzai/skia";
-import { Canvas, FontLibrary, loadImage, type CanvasRenderingContext2D as Context, type Image } from "skia-canvas";
+import { Canvas, type CanvasRenderingContext2D as Context, type Image } from "skia-canvas";
+import { cardAssetFile, loadCardFont, loadCardImage } from "./local-card-assets.ts";
 import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./status-card-data.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
@@ -24,37 +24,6 @@ interface Theme {
   readonly font: string;
 }
 
-async function themeFile(root: string, path: string) {
-  try {
-    const file = await realpath(join(root, path));
-    const name = relative(root, file);
-    if (!name || name === ".." || name.startsWith(".." + sep) || isAbsolute(name)) return;
-    const info = await stat(file);
-    if (info.isFile() && info.size <= 24 * 1024 ** 2) return file;
-  } catch {
-    return;
-  }
-}
-
-async function picture(root: string, path: string) {
-  const file = await themeFile(root, path);
-  if (file) return loadImage(await readFile(file));
-}
-
-const fonts = new Map<string, string>();
-
-async function useFont(root: string) {
-  const file = await themeFile(root, "common/font/FZB.ttf");
-  if (!file) return '"PingFang SC", "Noto Sans CJK SC", sans-serif';
-  const known = fonts.get(file);
-  if (known) return known;
-  const name = "Lotus Status " + createHash("sha256").update(file).digest("hex").slice(0, 12);
-  FontLibrary.use(name, [file]);
-  const font = `"${name}", "Noto Sans CJK SC", sans-serif`;
-  fonts.set(file, font);
-  return font;
-}
-
 export function statusCardThemeDirectory() {
   return process.env.LOTUS_SYSTEM_STATUS_THEME_DIR || defaultDirectory;
 }
@@ -62,18 +31,19 @@ export function statusCardThemeDirectory() {
 export async function loadStatusCardTheme(directory = statusCardThemeDirectory()): Promise<Theme | undefined> {
   const root = await realpath(directory).catch(() => undefined);
   if (!root) return;
-  const direct = await themeFile(root, "state/img/bg/1.jpg") || await themeFile(root, "state/img/bg/2.jpg");
-  const theme = direct ? root : await themeFile(root, "resources/state/img/bg/1.jpg") ||
-    await themeFile(root, "resources/state/img/bg/2.jpg") ? join(root, "resources") : undefined;
+  const direct = await cardAssetFile(root, "state/img/bg/1.jpg") || await cardAssetFile(root, "state/img/bg/2.jpg");
+  const theme = direct ? root : await cardAssetFile(root, "resources/state/img/bg/1.jpg") ||
+    await cardAssetFile(root, "resources/state/img/bg/2.jpg") ? join(root, "resources") : undefined;
   if (!theme) return;
   const [background, avatar, font, entries] = await Promise.all([
-    picture(theme, "state/img/bg/1.jpg").then(image => image ?? picture(theme, "state/img/bg/2.jpg")),
-    picture(theme, "state/img/default_avatar.jpg"),
-    useFont(theme),
-    Promise.all(icons.map(async icon => [icon, await picture(theme, `state/icon/${icon}.png`)] as const)),
+    loadCardImage(theme, "state/img/bg/1.jpg").then(image => image ?? loadCardImage(theme, "state/img/bg/2.jpg")),
+    loadCardImage(theme, "state/img/default_avatar.jpg"),
+    loadCardFont(theme, "common/font/FZB.ttf"),
+    Promise.all(icons.map(async icon => [icon, await loadCardImage(theme, `state/icon/${icon}.png`)] as const)),
   ]);
   if (!background || !avatar || entries.some(([, image]) => image === undefined)) return;
-  return { background, avatar, font, icons: new Map(entries.filter((entry): entry is readonly [Icon, Image] => entry[1] !== undefined)) };
+  const family = font ? `"${font}", "Noto Sans CJK SC", sans-serif` : '"PingFang SC", "Noto Sans CJK SC", sans-serif';
+  return { background, avatar, font: family, icons: new Map(entries.filter((entry): entry is readonly [Icon, Image] => entry[1] !== undefined)) };
 }
 
 function font(ctx: Context, theme: Theme, size: number, weight = 400) {
