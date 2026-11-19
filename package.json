@@ -2,6 +2,10 @@
   "name": "@lotus-yunzai/system",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "@lotus-yunzai/skia": "workspace:*",
+    "skia-canvas": "3.0.8"
+  },
   "lotusYunzai": {
     "entry": "./index.ts"
   }
