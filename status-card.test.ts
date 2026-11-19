@@ -77,12 +77,67 @@ test("裸旧状态按全局 defaultState 分流，核心状态统计和其它消
     await writeFile(config, "defaultState: true\n");
     expect(await fallback("状态", group)).toContain("Lotus-Yunzai 正在运行");
     expect(await fallback("状态 用户 42", group)).toBeUndefined();
-    expect(await fallback("椰奶状态pro", group)).toBeUndefined();
     expect(await fallback("#状态帮助", group)).toBeUndefined();
     expect(await commands["#状态"]("用户 42", group)).toBe("统计：用户 42");
   } finally {
     if (previous === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
     else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("按旧规则开放裸状态 Pro，noPro 生效时所有 Pro 拼法旁路", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lotus-status-pro-config-"));
+  const config = join(directory, "state.yaml");
+  const previousConfig = process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+  const previousTheme = process.env.LOTUS_SYSTEM_STATUS_THEME_DIR;
+  process.env.LOTUS_SYSTEM_STATUS_CONFIG = config;
+  process.env.LOTUS_SYSTEM_STATUS_THEME_DIR = directory;
+  try {
+    const scopes: string[] = [];
+    const { commands, fallback } = createModule({
+      async messageStatistics(args) { return `统计：${args}`; },
+      runtimeStatus(context, pro) {
+        scopes.push(`${context.message_type}:${context.runtimeStatusScope}:${pro}`);
+        return { accounts: [] };
+      },
+    });
+    const oneBot = { message_type: "private", isMaster: true, self_id: 51, user_id: 52, runtimeStatusScope: "onebot" } as const;
+    const milky = { ...oneBot, isMaster: false, runtimeStatusScope: "milky", runtimeDiagnosticsScope: "milky" } as const;
+    const terminal = { message_type: "terminal", isMaster: true, runtimeStatusScope: "terminal" } as const;
+    const ordinary = { ...oneBot, isMaster: false };
+    const groupOwner = { ...oneBot, message_type: "group" } as const;
+    expect(await fallback("状态pro", oneBot)).toBeUndefined();
+    expect(await fallback("椰奶状态pro", ordinary)).toContain("仅供");
+    expect(await fallback("椰奶状态pro", groupOwner)).toContain("仅供");
+    expect(scopes).toEqual([]);
+
+    expect(await fallback("椰奶状态pro", oneBot)).toContain("运行诊断");
+    await writeFile(config, "defaultState: true\n");
+    expect(await fallback("状态pro", milky)).toContain("运行诊断");
+    expect(await commands["#状态pro"]("", terminal)).toContain("运行诊断");
+    expect(scopes).toEqual(["private:onebot:true", "private:milky:true", "terminal:terminal:true"]);
+    expect(await fallback("状态pro 额外参数", milky)).toBeUndefined();
+    expect(await fallback("椰奶状态debug", oneBot)).toBeUndefined();
+    expect(await fallback("椰奶状态prodebug", groupOwner)).toBeUndefined();
+
+    await writeFile(config, "defaultState: true\nnoPro: true\n");
+    for (const name of ["#状态pro", "#椰奶状态pro"] as const) {
+      expect(await commands[name]("", oneBot)).toBeUndefined();
+    }
+    expect(await fallback("状态pro", oneBot)).toBeUndefined();
+    expect(await fallback("椰奶状态pro", milky)).toBeUndefined();
+    expect(await fallback("状态", oneBot)).toContain("正在运行");
+    expect(await commands["#状态"]("群 777", oneBot)).toBe("统计：群 777");
+    expect(commands["#诊断"]("", ordinary)).toContain("运行诊断");
+    expect(scopes).toHaveLength(3);
+    await writeFile(config, "noPro: [invalid\n");
+    expect(await commands["#状态pro"]("", terminal)).toBeUndefined();
+  } finally {
+    if (previousConfig === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+    else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previousConfig;
+    if (previousTheme === undefined) delete process.env.LOTUS_SYSTEM_STATUS_THEME_DIR;
+    else process.env.LOTUS_SYSTEM_STATUS_THEME_DIR = previousTheme;
     await rm(directory, { recursive: true, force: true });
   }
 });

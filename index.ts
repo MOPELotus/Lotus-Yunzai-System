@@ -171,10 +171,16 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return runtimeStatus && context ? statusCard(context, false, fallback) : fallback();
   }
 
-  function proStatus(args = "", context?: DiagnosticsContext) {
-    if (args.trim()) return "用法：#状态pro。";
+  function renderProStatus(context?: DiagnosticsContext) {
     if (!context) return "当前会话无法读取状态 Pro。";
     return statusCard(context, true, () => withRuntime(diagnostics(), context));
+  }
+
+  async function proStatus(args = "", context?: DiagnosticsContext) {
+    const config = await readStatusConfig();
+    if (!config || config.noPro === true) return;
+    if (args.trim()) return "用法：#状态pro。";
+    return renderProStatus(context);
   }
 
   async function statusMonitor(args = "", context?: DiagnosticsContext) {
@@ -233,10 +239,12 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   async function fallback(message: string, context: OriginalPhotoContext) {
     const input = message.trim();
     if (input === "椰奶状态") return status("", context);
-    if (input === "状态") {
+    if (input === "状态" || input === "状态pro" || input === "椰奶状态pro") {
       const config = await readStatusConfig();
-      if (config?.defaultState === true) return status("", context);
-      return;
+      if (!config || (input !== "椰奶状态pro" && config.defaultState !== true)) return;
+      if (input === "状态") return status("", context);
+      if (config.noPro === true) return;
+      return renderProStatus(context);
     }
     return originalPhoto(input, context);
   }
