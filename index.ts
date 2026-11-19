@@ -18,11 +18,15 @@ interface StatisticsContext {
   readonly group_id?: number;
 }
 
+interface DiagnosticsContext extends StatisticsContext {
+  readonly runtimeDiagnosticsScope?: "milky";
+}
+
 type Statistics = (argumentsText: string, context: StatisticsContext) => Promise<string>;
-type RuntimeDiagnostics = (context: StatisticsContext) => {
+type RuntimeDiagnostics = (context: DiagnosticsContext) => {
   readonly accounts: readonly { id: number; seconds: number; adapter?: "milky" }[];
   readonly plugins: readonly { name: string; milliseconds: number }[];
-};
+} | undefined;
 interface RuntimeVersion {
   readonly version?: string;
   readonly revision?: string;
@@ -57,10 +61,12 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   readonly runtimeDiagnostics?: RuntimeDiagnostics;
   readonly runtimeVersion?: RuntimeVersion;
 }) {
-  function withRuntime(summary: string, context?: StatisticsContext): string {
-    if (!runtimeDiagnostics || context?.isMaster !== true) return summary;
+  function withRuntime(summary: string, context?: DiagnosticsContext): string {
+    if (!context || (context.isMaster !== true && context.runtimeDiagnosticsScope !== "milky")) return summary;
 
-    const { accounts, plugins } = runtimeDiagnostics(context);
+    const runtime = runtimeDiagnostics?.(context);
+    if (!runtime) return summary;
+    const { accounts, plugins } = runtime;
     const accountRows = accounts.map(({ id, seconds, adapter }) =>
       `${id}　${adapter === "milky" ? "Milky　" : ""}${uptime(seconds)}`);
     const pluginRows = plugins.map(({ name, milliseconds }) => `${name}　${Math.round(milliseconds)} ms`);
@@ -77,7 +83,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   return {
     commands: {
-      "#状态": (args = "", context: StatisticsContext) => {
+      "#状态": (args = "", context: DiagnosticsContext) => {
         if (messageStatistics && /^(?:机器人|用户|群|消息|日期)(?:\s|$)/u.test(args)) {
           return messageStatistics(args, context);
         }
@@ -93,7 +99,10 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
         "#帮助 查看系统指令",
         "#版本 查看宿主和内置模块版本",
       ].join("\n"),
-      "#诊断": (_args?: string, context?: StatisticsContext) => withRuntime(diagnostics(), context),
+      "#诊断": (args = "", context?: DiagnosticsContext) => {
+        const summary = diagnostics();
+        return args.trim() && context?.isMaster !== true ? summary : withRuntime(summary, context);
+      },
     },
   };
 }
