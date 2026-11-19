@@ -15,6 +15,7 @@ const lineColor = "#2ec7c9";
 const originalFont = '"Noto Sans CJK SC", sans-serif';
 const GiB = 1024 ** 3;
 const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const second = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const day = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" });
 
 interface MonitorTheme {
@@ -93,10 +94,15 @@ function trace(ctx: Context, points: readonly Point[]) {
 
 function horizontalScale(ctx: Context, first: number, span: number, x: number, bottom: number, size: number) {
   ctx.textAlign = "center";
-  const period = [60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000, 7_200_000]
+  ctx.strokeStyle = "#777c87";
+  const withSeconds = span < 120_000;
+  const period = (withSeconds ? [1_000, 2_000, 5_000, 10_000, 15_000] :
+    [60_000, 120_000, 300_000, 600_000, 900_000, 1_800_000, 3_600_000, 7_200_000])
     .find(interval => interval >= span / 8) ?? 7_200_000;
   const end = first + span;
-  const severalDays = day.format(first) !== day.format(end);
+  const severalDays = !withSeconds && day.format(first) !== day.format(end);
+  const format = withSeconds ? second : time;
+  let shown = 0;
   for (let tick = Math.ceil(first / period) * period; tick <= end; tick += period) {
     const labelX = x + (tick - first) / span * size;
     if (labelX < x + 18 || labelX > x + size - 18) continue;
@@ -104,7 +110,18 @@ function horizontalScale(ctx: Context, first: number, span: number, x: number, b
     ctx.moveTo(labelX, bottom);
     ctx.lineTo(labelX, bottom + 4);
     ctx.stroke();
-    ctx.fillText(severalDays ? `${day.format(tick)} ${time.format(tick)}` : time.format(tick), labelX, bottom + 19);
+    ctx.fillText(severalDays ? `${day.format(tick)} ${format.format(tick)}` : format.format(tick), labelX, bottom + 19);
+    shown++;
+  }
+  if (!shown) {
+    const startLabel = format.format(first);
+    const endLabel = format.format(end);
+    if (startLabel === endLabel) {
+      ctx.fillText(startLabel, x + size / 2, bottom + 19);
+    } else {
+      ctx.fillText(startLabel, x + 18, bottom + 19);
+      ctx.fillText(endLabel, x + size - 18, bottom + 19);
+    }
   }
 }
 
@@ -155,7 +172,7 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
   }
   ctx.textAlign = "center";
   if (span) horizontalScale(ctx, first, span, left, bottom, right - left);
-  else ctx.fillText(time.format(first), points[0]!.x, bottom + 19);
+  else ctx.fillText(second.format(first), points[0]!.x, bottom + 19);
 
   if (points.length > 1) {
     ctx.beginPath();
