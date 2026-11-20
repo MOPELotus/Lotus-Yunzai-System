@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "@lotus-yunzai/skia": "workspace:*",
-    "skia-canvas": "3.0.8"
+    "skia-canvas": "4.0.1"
   },
   "lotusYunzai": {
     "entry": "./index.ts"

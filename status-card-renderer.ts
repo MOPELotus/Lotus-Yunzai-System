@@ -323,6 +323,7 @@ function drawResource(ctx: Context, theme: Theme, resource: StatusResource, inde
 
 export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
   const meter = new Canvas(1, 1).getContext("2d");
+  meter.fontSynthesis = false;
   const layouts = model.accounts.map(account => badgeRows(meter, theme, account));
   const resources = model.resources.filter(resource => Number.isFinite(resource.percent)).slice(0, 4);
   const resourceHeight = resources.length ? 234 + 22 * Math.max(0, ...resources.map(row => row.info?.length ?? 0)) : 0;
@@ -331,6 +332,7 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
   const footerY = resourceY + resourceHeight + (resources.length ? 20 : 0);
   const height = footerY + 60;
   return renderPng(Math.ceil(logicalWidth * scale), Math.ceil(height * scale), ctx => {
+    ctx.fontSynthesis = false;
     ctx.scale(scale, scale);
     ctx.fillStyle = "#e9e9e9";
     ctx.fillRect(0, 0, logicalWidth, height);
