@@ -85,9 +85,8 @@ test("暂停监控可看原有样本，关闭持久化时完全不访问存储",
   expect(requests).toBe(1);
 });
 
-test("保留旧监控命令，尚无样本时输出诚实说明", async () => {
+test("监控尚无样本时返回文字说明", async () => {
   const { commands } = createModule({});
-  expect(commands["#椰奶监控"]).toBe(commands["#监控"]);
   expect(await commands["#监控"]()).toBe("Lotus-Yunzai 监控\n等待首次采样。");
   expect(await commands["#监控"]("任意参数")).toBe("用法：#监控。");
 });

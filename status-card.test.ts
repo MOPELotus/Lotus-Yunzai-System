@@ -11,7 +11,7 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
   process.env.LOTUS_SYSTEM_STATUS_THEME_DIR = directory;
   try {
     const allowed: string[] = [];
-    const { commands } = createModule({
+    const { commands, aliases } = createModule({
       runtimeStatus(context, pro) {
         allowed.push(`${context.message_type}:${pro}`);
         if (context.runtimeDiagnosticsScope === "milky") return;
@@ -21,20 +21,26 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
     });
     const owner = { message_type: "private", isMaster: true, self_id: 41, user_id: 42 } as const;
     const ordinary = { ...owner, isMaster: false };
-    expect(await commands["#状态pro"]("", ordinary)).toContain("仅供");
-    expect(await commands["#椰奶状态pro"]("", { ...owner, message_type: "group" })).toContain("仅供");
-    expect(await commands["#状态pro"]("", { ...owner, self_id: undefined })).toContain("仅供");
-    expect(await commands["#状态pro"]("", { ...owner, self_id: -1 })).toContain("仅供");
-    expect(await commands["#状态pro"]("", {
+    expect(await commands["#状态Pro"]("", ordinary)).toContain("仅供");
+    expect(await commands["#状态Pro"]("", { ...owner, message_type: "group" })).toContain("仅供");
+    expect(await commands["#状态Pro"]("", { ...owner, self_id: undefined })).toContain("仅供");
+    expect(await commands["#状态Pro"]("", { ...owner, self_id: -1 })).toContain("仅供");
+    expect(await commands["#状态Pro"]("", {
       message_type: "terminal", isMaster: false, runtimeDiagnosticsScope: "milky",
     })).toContain("仅供");
     expect(allowed).toEqual([]);
 
-    expect(await commands["#椰奶状态pro"]("", owner)).toContain("Lotus-Yunzai 运行诊断");
-    expect(await commands["#状态pro"]("", { message_type: "terminal", isMaster: true })).toContain("Lotus-Yunzai 运行诊断");
-    expect(await commands["#状态pro"]("", { ...ordinary, runtimeDiagnosticsScope: "milky" })).toContain("当前会话无法");
+    expect(await commands["#状态Pro"]("", owner)).toContain("Lotus-Yunzai 运行诊断");
+    expect(await commands["#状态Pro"]("", { message_type: "terminal", isMaster: true })).toContain("Lotus-Yunzai 运行诊断");
+    expect(await commands["#状态Pro"]("", { ...ordinary, runtimeDiagnosticsScope: "milky" })).toContain("当前会话无法");
     expect(await commands["#状态"]("", ordinary)).toContain("Lotus-Yunzai 正在运行");
-    expect(await commands["#椰奶状态"]("", ordinary)).toContain("Lotus-Yunzai 正在运行");
+    expect(aliases).toEqual({ "#状态pro": "#状态Pro" });
+    expect(commands["#帮助"]()).toContain("#状态Pro 主人私聊或授权终端查看详细状态");
+    expect(await commands["#状态Pro"]("多余参数", owner)).toBe("用法：#状态Pro。");
+    for (const name of ["#椰奶状态", "#椰奶状态Pro", "#椰奶状态pro", "#椰奶监控"]) {
+      expect(Object.hasOwn(commands, name)).toBe(false);
+      expect(Object.hasOwn(aliases, name)).toBe(false);
+    }
     expect(await commands["#状态"]("用户 42", owner)).toBe("统计：用户 42");
     expect(allowed).toEqual(["private:true", "terminal:true", "private:true"]);
   } finally {
@@ -44,7 +50,7 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
   }
 });
 
-test("本地椰奶主题引用不得通过符号链接读取主题目录外的资产", async () => {
+test("本地状态卡主题引用不得通过符号链接读取主题目录外的资产", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lotus-status-theme-"));
   try {
     const theme = join(directory, "theme");
@@ -69,7 +75,7 @@ test("裸旧状态按全局 defaultState 分流，核心状态统计和其它消
     });
     const group = { message_type: "group", isMaster: false } as const;
     expect(await fallback("状态", group)).toBeUndefined();
-    expect(await fallback("椰奶状态", group)).toContain("Lotus-Yunzai 正在运行");
+    expect(await fallback("椰奶状态", group)).toBeUndefined();
     await writeFile(config, "defaultState: false\n");
     expect(await fallback("状态", group)).toBeUndefined();
     await writeFile(config, "defaultState: 'true'\n");
@@ -108,31 +114,31 @@ test("按旧规则开放裸状态 Pro，noPro 生效时所有 Pro 拼法旁路",
     const ordinary = { ...oneBot, isMaster: false };
     const groupOwner = { ...oneBot, message_type: "group" } as const;
     expect(await fallback("状态pro", oneBot)).toBeUndefined();
-    expect(await fallback("椰奶状态pro", ordinary)).toContain("仅供");
-    expect(await fallback("椰奶状态pro", groupOwner)).toContain("仅供");
+    expect(await commands["#状态Pro"]("", ordinary)).toContain("仅供");
+    expect(await commands["#状态Pro"]("", groupOwner)).toContain("仅供");
     expect(scopes).toEqual([]);
 
-    expect(await fallback("椰奶状态pro", oneBot)).toContain("运行诊断");
+    expect(await commands["#状态Pro"]("", oneBot)).toContain("运行诊断");
     await writeFile(config, "defaultState: true\n");
+    expect(await fallback("状态Pro", milky)).toContain("运行诊断");
     expect(await fallback("状态pro", milky)).toContain("运行诊断");
-    expect(await commands["#状态pro"]("", terminal)).toContain("运行诊断");
-    expect(scopes).toEqual(["private:onebot:true", "private:milky:true", "terminal:terminal:true"]);
+    expect(await commands["#状态Pro"]("", terminal)).toContain("运行诊断");
+    expect(scopes).toEqual(["private:onebot:true", "private:milky:true", "private:milky:true", "terminal:terminal:true"]);
     expect(await fallback("状态pro 额外参数", milky)).toBeUndefined();
-    expect(await fallback("椰奶状态debug", oneBot)).toBeUndefined();
-    expect(await fallback("椰奶状态prodebug", groupOwner)).toBeUndefined();
+    expect(await fallback("椰奶状态Pro", oneBot)).toBeUndefined();
+    expect(await fallback("状态debug", oneBot)).toBeUndefined();
+    expect(await fallback("状态prodebug", groupOwner)).toBeUndefined();
 
     await writeFile(config, "defaultState: true\nnoPro: true\n");
-    for (const name of ["#状态pro", "#椰奶状态pro"] as const) {
-      expect(await commands[name]("", oneBot)).toBeUndefined();
-    }
+    expect(await commands["#状态Pro"]("", oneBot)).toBeUndefined();
     expect(await fallback("状态pro", oneBot)).toBeUndefined();
-    expect(await fallback("椰奶状态pro", milky)).toBeUndefined();
+    expect(await fallback("状态Pro", milky)).toBeUndefined();
     expect(await fallback("状态", oneBot)).toContain("正在运行");
     expect(await commands["#状态"]("群 777", oneBot)).toBe("统计：群 777");
     expect(commands["#诊断"]("", ordinary)).toContain("运行诊断");
-    expect(scopes).toHaveLength(3);
+    expect(scopes).toHaveLength(4);
     await writeFile(config, "noPro: [invalid\n");
-    expect(await commands["#状态pro"]("", terminal)).toBeUndefined();
+    expect(await commands["#状态Pro"]("", terminal)).toBeUndefined();
   } finally {
     if (previousConfig === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
     else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previousConfig;

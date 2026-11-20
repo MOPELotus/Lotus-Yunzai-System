@@ -179,7 +179,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   async function proStatus(args = "", context?: DiagnosticsContext) {
     const config = await readStatusConfig();
     if (!config || config.noPro === true) return;
-    if (args.trim()) return "用法：#状态pro。";
+    if (args.trim()) return "用法：#状态Pro。";
     return renderProStatus(context);
   }
 
@@ -238,10 +238,9 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   async function fallback(message: string, context: OriginalPhotoContext) {
     const input = message.trim();
-    if (input === "椰奶状态") return status("", context);
-    if (input === "状态" || input === "状态pro" || input === "椰奶状态pro") {
+    if (/^状态(?:[Pp]ro)?$/u.test(input)) {
       const config = await readStatusConfig();
-      if (!config || (input !== "椰奶状态pro" && config.defaultState !== true)) return;
+      if (config?.defaultState !== true) return;
       if (input === "状态") return status("", context);
       if (config.noPro === true) return;
       return renderProStatus(context);
@@ -253,20 +252,18 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     dispose: async () => (await monitor)?.dispose(),
     fallback,
     fallbackFeatures: () => ["[system] 状态"],
+    aliases: { "#状态pro": "#状态Pro" },
     commands: {
       "#状态": status,
-      "#椰奶状态": status,
-      "#状态pro": proStatus,
-      "#椰奶状态pro": proStatus,
+      "#状态Pro": proStatus,
       "#监控": statusMonitor,
-      "#椰奶监控": statusMonitor,
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
       "#帮助": () => [
         "Lotus-Yunzai 系统指令",
         "#状态 查看宿主运行状态",
-        "#状态pro 主人私聊查看详细状态",
+        "#状态Pro 主人私聊或授权终端查看详细状态",
         "#监控 查看 CPU、RAM、网络与磁盘趋势",
         "#统计 查看消息收发量",
         "#帮助 查看系统指令",
