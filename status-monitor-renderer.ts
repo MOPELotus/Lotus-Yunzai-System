@@ -1,50 +1,15 @@
-import { realpath } from "node:fs/promises";
-import { join } from "node:path";
-import { renderPng } from "@lotus-yunzai/skia";
-import type { CanvasRenderingContext2D as Context, Image } from "skia-canvas";
-import { loadCardFont } from "./local-card-assets.ts";
-import { loadStatusBackground, readStatusBackground } from "./status-background.ts";
-import { background, glass, statusCardThemeDirectory } from "./status-card-renderer.ts";
+import { drawInfoText, infoCardColors, renderInfoCard } from "@lotus-yunzai/skia/info-card";
+import type { CanvasRenderingContext2D as Context } from "skia-canvas";
 import type { StatusMonitorSample } from "./status-monitor.ts";
 
-// Geometry follows Yenai-Plugin fe42a6f, resources/state/monitor.html and css/index.css.
 const width = 650;
-const height = 1530;
-const scale = 4;
-// Skia filters and shadow distances use device pixels. Keep their former logical sizes.
-const effectScale = scale / 1.4;
 const lineColor = "#2ec7c9";
 const secondaryColor = "#b6a2de";
-const originalFont = '"Noto Sans CJK SC", sans-serif';
+const chartFont = '"Noto Sans CJK SC", sans-serif';
 const GiB = 1024 ** 3;
 const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const second = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });
 const day = new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric" });
-
-interface MonitorTheme {
-  readonly background: Image;
-  readonly body: string;
-  readonly title: string;
-}
-
-export async function loadStatusMonitorTheme(directory = statusCardThemeDirectory()): Promise<MonitorTheme | undefined> {
-  const root = await realpath(directory).catch(() => undefined);
-  const selected = await readStatusBackground();
-  if (!root || !selected) return;
-  for (const resources of [root, join(root, "resources")]) {
-    const photo = await loadStatusBackground(resources, selected);
-    if (!photo) continue;
-    const [body, title] = await Promise.all([
-      loadCardFont(resources, "common/font/FZB.ttf"),
-      loadCardFont(resources, "common/font/NZBZ.ttf"),
-    ]);
-    return {
-      background: photo.image,
-      body: body ? `"${body}", ${originalFont}` : originalFont,
-      title: title ? `"${title}", ${originalFont}` : originalFont,
-    };
-  }
-}
 
 function bytes(value: number) {
   const units = ["B", "KB", "MB", "GB", "TB", "PB"];
@@ -152,14 +117,17 @@ function horizontalScale(ctx: Context, first: number, span: number, x: number, b
   }
 }
 
-function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonitorSample[],
+function chart(ctx: Context, samples: readonly StatusMonitorSample[],
   key: "cpu" | "ram" | "network" | "disk", y: number) {
   const io = key === "network" || key === "disk";
-  glass(ctx, theme, height, 25, y, 600, 322, width);
-  ctx.fillStyle = "#444";
-  ctx.font = `bold 20px ${theme.body}`;
-  ctx.fillText(key === "network" ? "Network" : key === "disk" ? "disksIO" : key.toUpperCase(), 41, y + 33);
-  ctx.font = `12px ${theme.body}`;
+  ctx.fillStyle = infoCardColors.tile;
+  ctx.beginPath();
+  ctx.roundRect(25, y, width - 60, 322, 12);
+  ctx.fill();
+  drawInfoText(ctx, [key === "network" ? "网络吞吐" : key === "disk" ? "磁盘 I/O" : key.toUpperCase()],
+    41, y + 11, { size: 20, color: infoCardColors.gold });
+  ctx.font = `12px ${chartFont}`;
+  ctx.textBaseline = "alphabetic";
 
   const colors = [lineColor, secondaryColor];
   const areas = ["rgba(46,199,201,0.72)", "rgba(182,162,222,0.68)"];
@@ -182,7 +150,7 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
   if (io) {
     drawRateLegend(ctx, series, y);
     if (samples.some(row => row[key]) && !samples.at(-1)?.[key]) {
-      ctx.fillStyle = "#535866";
+      ctx.fillStyle = infoCardColors.muted;
       ctx.textAlign = "right";
       ctx.fillText("最近采样缺失", 585, y + 28);
       ctx.textAlign = "left";
@@ -191,7 +159,7 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
   const readings = series.flatMap(item => item.segments.flat());
   if (!readings.length) {
     ctx.textAlign = "center";
-    ctx.fillStyle = "#535866";
+    ctx.fillStyle = infoCardColors.muted;
     ctx.fillText(io ? "暂无可核验的吞吐采样" : "暂无采样", width / 2, y + 160);
     ctx.textAlign = "left";
     return;
@@ -216,12 +184,12 @@ function chart(ctx: Context, theme: MonitorTheme, samples: readonly StatusMonito
     value,
   });
 
-  ctx.fillStyle = "#696f79";
+  ctx.fillStyle = infoCardColors.muted;
   ctx.textAlign = "right";
   ctx.lineWidth = 1;
   for (let i = 0; i <= division; i++) {
     const tickY = bottom - (bottom - top) * i / division;
-    ctx.strokeStyle = i ? "#dbe2ee" : "#777c87";
+    ctx.strokeStyle = i ? "rgba(211,188,142,.18)" : infoCardColors.rule;
     ctx.beginPath();
     ctx.moveTo(left, tickY);
     ctx.lineTo(right, tickY);
@@ -276,7 +244,7 @@ function drawRateLegend(ctx: Context, series: readonly Series[], y: number) {
     ctx.fillStyle = "#fff";
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = "#333";
+    ctx.fillStyle = infoCardColors.muted;
     ctx.fillText(item.label!, x + 18, cy + 5);
   }
 }
@@ -326,29 +294,18 @@ function drawPeak(ctx: Context, { point, label, color, radius: marker, x: marker
   ctx.fillText(label, markerX, center + 4);
 }
 
-export function renderStatusMonitor(samples: readonly StatusMonitorSample[], theme: MonitorTheme, enabled = true) {
-  return renderPng(Math.round(width * scale), Math.round(height * scale), ctx => {
-    ctx.scale(scale, scale);
-    background(ctx, theme, height, width);
-    ctx.shadowBlur = 3 * effectScale;
-    ctx.shadowOffsetY = 1 * effectScale;
-    ctx.shadowOffsetX = 1 * effectScale;
-    ctx.shadowColor = "#000";
-    ctx.fillStyle = "#fff";
-    ctx.font = `36px ${theme.title}`;
-    ctx.fillText("Lotus-Yunzai 监控", 35, 58);
-    ctx.font = `16px ${theme.body}`;
-    ctx.fillText(enabled ? "CPU & RAM & Network & DisksIO" : "CPU & RAM & Network & DisksIO　采样已暂停", 35, 87);
-    ctx.shadowColor = "transparent";
-
-    chart(ctx, theme, samples, "cpu", 122);
-    chart(ctx, theme, samples, "ram", 464);
-    chart(ctx, theme, samples, "network", 806);
-    chart(ctx, theme, samples, "disk", 1148);
-    ctx.textAlign = "center";
-    ctx.font = `14px ${theme.body}`;
-    ctx.shadowColor = "#000";
-    ctx.fillStyle = "#fff";
-    ctx.fillText("Created By Lotus-Yunzai", width / 2 + 5, 1506);
-  }, "gpu");
+export function renderStatusMonitor(samples: readonly StatusMonitorSample[], enabled = true) {
+  const metadata = enabled ? `CPU · 内存 · 网络 · 磁盘 / ${samples.length} 次采样`
+    : `采样已暂停 · ${samples.length} 条历史记录`;
+  return renderInfoCard({ title: "运行监控", metadata, width }, ({ x, y }) => ({
+    height: 4 * 342 - 20,
+    draw(ctx) {
+      ctx.save();
+      ctx.translate(x - 25, 0);
+      for (const [index, key] of (["cpu", "ram", "network", "disk"] as const).entries()) {
+        chart(ctx, samples, key, y + 342 * index);
+      }
+      ctx.restore();
+    },
+  }), { mode: "gpu" });
 }

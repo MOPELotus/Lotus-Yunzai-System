@@ -3,7 +3,7 @@ import { loadStatusCardTheme, renderStatusCard, statusCardThemeDirectory } from 
 import { readStatusConfig, readStatusOriginal } from "./status-background.ts";
 import { createStatusPhotoLedger, type StatusPhotoStorage } from "./status-photo-ledger.ts";
 import { createStatusMonitor, statusMonitorSettings, type StatusMonitorStorage } from "./status-monitor.ts";
-import { loadStatusMonitorTheme, renderStatusMonitor, statusMonitorText } from "./status-monitor-renderer.ts";
+import { renderStatusMonitor, statusMonitorText } from "./status-monitor-renderer.ts";
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
 
@@ -132,7 +132,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     try {
       if (!pro) {
         theme = await loadStatusCardTheme();
-        if (!theme) return fallback();
+        if (!theme && process.env.LOTUS_SYSTEM_STATUS_THEME_DIR) return fallback();
       }
       snapshot = await runtimeStatus?.(context, pro);
     } catch {
@@ -142,13 +142,13 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (rendering) return fallback();
     rendering = true;
     try {
-      theme ??= await loadStatusCardTheme();
-      if (!theme) return fallback();
+      if (pro) theme = await loadStatusCardTheme();
+      if (!theme && process.env.LOTUS_SYSTEM_STATUS_THEME_DIR) return fallback();
       const model = await collectStatusCard(snapshot, pro);
-      const result = await renderStatusCard(model, theme);
+      const result = await renderStatusCard(model, theme, pro);
       console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       const message = { type: "image" as const, file: result.png };
-      if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;
+      if (!theme || (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky")) return message;
       const { photo } = theme;
       return {
         type: "delivery" as const, message,
@@ -192,9 +192,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (!samples.length || !context || context.message_type === "terminal" || rendering) return fallback();
     rendering = true;
     try {
-      const theme = await loadStatusMonitorTheme();
-      if (!theme || signal?.aborted) return fallback();
-      const result = await renderStatusMonitor(samples, theme, enabled);
+      if (signal?.aborted) return fallback();
+      const result = await renderStatusMonitor(samples, enabled);
       console.log(`[渲染] 运行监控 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       return { type: "image" as const, file: result.png };
     } catch {
@@ -206,12 +205,12 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   async function versionCard() {
     try {
-      const theme = await loadVersionCardTheme();
-      if (theme) {
-        const result = await renderVersionCard(versionCardSections(runtimeVersion), theme);
-        console.log(`[渲染] 版本 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
-        return { type: "image" as const, file: result.png };
-      }
+      const configured = process.env.LOTUS_SYSTEM_VERSION_THEME_DIR;
+      const themeDirectory = configured ? await loadVersionCardTheme(configured) : undefined;
+      if (configured && !themeDirectory) return versionSummary(runtimeVersion);
+      const result = await renderVersionCard(versionCardSections(runtimeVersion), themeDirectory);
+      console.log(`[渲染] 版本 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+      return { type: "image" as const, file: result.png };
     } catch {
       // The text and terminal report remain available when the local theme cannot be rendered.
     }
