@@ -5,6 +5,7 @@ import { loadImage } from "skia-canvas";
 import { cardAssetFile } from "./local-card-assets.ts";
 
 const defaultConfig = new URL("../../config/system-status.yaml", import.meta.url);
+const legacyConfig = new URL("../../plugins/yenai-plugin/config/config/state.yaml", import.meta.url);
 const backdropDirectory = "state/img/bg";
 
 export interface StatusPhoto {
@@ -40,9 +41,7 @@ async function readPhoto(directory: string, name: string) {
   if (file) return readFile(file);
 }
 
-export async function readStatusConfig(
-  source = process.env.LOTUS_SYSTEM_STATUS_CONFIG || defaultConfig,
-): Promise<Record<string, unknown> | undefined> {
+async function readConfig(source: string | URL): Promise<Record<string, unknown> | undefined> {
   try {
     const file = Bun.file(source);
     if (!await file.exists()) return {};
@@ -52,6 +51,18 @@ export async function readStatusConfig(
   } catch {
     return;
   }
+}
+
+export async function readStatusConfig(source?: string | URL): Promise<Record<string, unknown> | undefined> {
+  const configured = source ?? (process.env.LOTUS_SYSTEM_STATUS_CONFIG || undefined);
+  const current = await readConfig(configured ?? defaultConfig);
+  if (!current || configured || ("defaultState" in current && "noPro" in current)) return current;
+  const legacy = await readConfig(legacyConfig);
+  return {
+    ...(typeof legacy?.defaultState === "boolean" ? { defaultState: legacy.defaultState } : {}),
+    ...(typeof legacy?.noPro === "boolean" ? { noPro: legacy.noPro } : {}),
+    ...current,
+  };
 }
 
 export async function readStatusBackground(source?: string | URL): Promise<string | undefined> {
