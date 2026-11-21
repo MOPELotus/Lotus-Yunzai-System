@@ -64,6 +64,47 @@ test("本地状态卡主题引用不得通过符号链接读取主题目录外�
   }
 });
 
+test("状态账号头像与在线图标读取原主题，缺失或越界时保留该状态卡主题", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lotus-status-portrait-"));
+  const theme = join(directory, "theme");
+  const config = join(directory, "state.yaml");
+  const previous = process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+  process.env.LOTUS_SYSTEM_STATUS_CONFIG = config;
+  try {
+    await mkdir(join(theme, "state/img/bg"), { recursive: true });
+    await mkdir(join(theme, "state/icon"), { recursive: true });
+    await writeFile(config, "style: {backdropDefault: 1.png}\n");
+    const pixel = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a88YAAAAASUVORK5CYII=", "base64");
+    const avatar = join(theme, "state/img/default_avatar.jpg");
+    const online = join(theme, "state/icon/11.png");
+    await writeFile(join(theme, "state/img/bg/1.png"), pixel);
+    expect((await loadStatusCardTheme(theme))?.photo.name).toBe("1.png");
+    expect((await loadStatusCardTheme(theme))?.avatar).toBeUndefined();
+    expect((await loadStatusCardTheme(theme))?.online).toBeUndefined();
+
+    await writeFile(avatar, pixel);
+    await writeFile(online, pixel);
+    const original = await loadStatusCardTheme(theme);
+    expect(original?.avatar?.width).toBe(1);
+    expect(original?.online?.width).toBe(1);
+
+    await rm(avatar);
+    await rm(online);
+    const outside = join(directory, "outside.png");
+    await writeFile(outside, pixel);
+    await symlink(outside, avatar);
+    await symlink(outside, online);
+    const fallback = await loadStatusCardTheme(theme);
+    expect(fallback?.photo.name).toBe("1.png");
+    expect(fallback?.avatar).toBeUndefined();
+    expect(fallback?.online).toBeUndefined();
+  } finally {
+    if (previous === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
+    else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("裸旧状态按全局 defaultState 分流，核心状态统计和其它消息保留原路由", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lotus-status-config-"));
   const config = join(directory, "state.yaml");

@@ -2,21 +2,26 @@ import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { drawInfoText, infoCardColors as colors, measureInfoText, renderInfoCard } from "@lotus-yunzai/skia/info-card";
-import type { Image } from "skia-canvas";
+import type { CanvasRenderingContext2D, Image } from "skia-canvas";
+import { loadCardImage } from "./local-card-assets.ts";
 import { loadStatusBackground, readStatusBackground, type StatusPhoto } from "./status-background.ts";
 import type { StatusCardModel } from "./status-card-data.ts";
 
 const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
+const portraitSize = 50;
 interface StatusSection {
   readonly title: string;
   readonly lines: readonly string[];
   readonly percent?: number;
   readonly buffer?: number;
+  readonly account?: boolean;
 }
 
 interface Theme {
   readonly background: Image;
   readonly photo: StatusPhoto;
+  readonly avatar?: Image;
+  readonly online?: Image;
 }
 
 export function statusCardThemeDirectory() {
@@ -28,7 +33,12 @@ export async function loadStatusCardTheme(directory = statusCardThemeDirectory()
   if (!root || !selected) return;
   for (const resource of [root, join(root, "resources")]) {
     const background = await loadStatusBackground(resource, selected);
-    if (background) return { background: background.image, photo: background.photo };
+    if (!background) continue;
+    const [avatar, online] = await Promise.all([
+      loadCardImage(resource, "state/img/default_avatar.jpg").catch(() => undefined),
+      loadCardImage(resource, "state/icon/11.png").catch(() => undefined),
+    ]);
+    return { background: background.image, photo: background.photo, avatar, online };
   }
 }
 
@@ -39,6 +49,37 @@ function duration(value: number) {
   return parts.filter(([amount]) => amount > 0).map(([amount, unit]) => amount + unit).join(" ") || "0 秒";
 }
 
+function drawAccountPortrait(ctx: CanvasRenderingContext2D, theme: Theme | undefined, initial: string, x: number, y: number) {
+  const size = portraitSize;
+  ctx.save();
+  ctx.beginPath();
+  ctx.roundRect(x, y, size, size, 12);
+  ctx.clip();
+  if (theme?.avatar) {
+    const image = theme.avatar;
+    const zoom = size / Math.min(image.width, image.height);
+    const w = image.width * zoom;
+    const h = image.height * zoom;
+    ctx.drawImage(image, x + (size - w) / 2, y + (size - h) / 2, w, h);
+  } else {
+    ctx.fillStyle = colors.rule;
+    ctx.fillRect(x, y, size, size);
+    drawInfoText(ctx, [initial], x + size / 2, y + 12, { size: 23, align: "center", color: colors.gold });
+  }
+  ctx.restore();
+  if (theme?.online) {
+    ctx.drawImage(theme.online, x + size - 11, y + size - 11, 16, 16);
+  } else {
+    ctx.beginPath();
+    ctx.arc(x + size - 3, y + size - 3, 6, 0, Math.PI * 2);
+    ctx.fillStyle = "#49d79c";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#172130";
+    ctx.stroke();
+  }
+}
+
 export function renderStatusCard(model: StatusCardModel, theme: Theme | undefined, pro = false) {
   return renderInfoCard({ title: pro ? "运行状态 Pro" : "运行状态", metadata: `${model.platform} · ${model.runtime}`, width: 750 },
     ({ x, y, width, measure }) => {
@@ -46,6 +87,7 @@ export function renderStatusCard(model: StatusCardModel, theme: Theme | undefine
       const sections: StatusSection[] = [
         ...model.accounts.map(account => ({
           title: account.name,
+          account: true,
           lines: [
             `${account.adapter === "milky" ? "Milky v1" : "OneBot v11"} · 在线 ${duration(account.seconds)}`,
             [ [account.friends, "好友"], [account.groups, "群组"], [account.members, "群员"],
@@ -63,10 +105,14 @@ export function renderStatusCard(model: StatusCardModel, theme: Theme | undefine
           buffer: resource.bufferPercent,
         })),
       ];
-      const blocks = sections.map(({ title: name, lines: descriptions, percent, buffer }) => {
-        const title = measureInfoText(measure, name, width - 32, 22);
-        const lines = descriptions.filter(Boolean).flatMap(line => measureInfoText(measure, line, width - 32, 17));
-        return { title, lines, percent, buffer, height: 25 + title.length * 31 + lines.length * 25 + (percent === undefined ? 0 : 16) };
+      const blocks = sections.map(({ title: name, lines: descriptions, percent, buffer, account }) => {
+        const left = account ? 78 : 16;
+        const textWidth = width - left - 16;
+        const title = measureInfoText(measure, name, textWidth, 22);
+        const lines = descriptions.filter(Boolean).flatMap(line => measureInfoText(measure, line, textWidth, 17));
+        const initial = account ? Array.from(name.trim())[0] ?? "?" : undefined;
+        const height = 25 + title.length * 31 + lines.length * 25 + (percent === undefined ? 0 : 16);
+        return { title, lines, percent, buffer, left, initial, height: account ? Math.max(74, height) : height };
       });
       return {
         height: photoHeight + blocks.reduce((sum, block) => sum + block.height + 12, 0),
@@ -84,13 +130,14 @@ export function renderStatusCard(model: StatusCardModel, theme: Theme | undefine
             ctx.restore();
           }
           let top = y + photoHeight;
-          for (const { title, lines, percent, buffer, height } of blocks) {
+          for (const { title, lines, percent, buffer, left, initial, height } of blocks) {
             ctx.beginPath();
             ctx.roundRect(x, top, width, height, 10);
             ctx.fillStyle = colors.tile;
             ctx.fill();
-            drawInfoText(ctx, title, x + 16, top + 10, { color: colors.gold, size: 22, leading: 31 });
-            drawInfoText(ctx, lines, x + 16, top + 10 + title.length * 31, { color: colors.muted, size: 17, leading: 25 });
+            if (initial) drawAccountPortrait(ctx, theme, initial, x + 14, top + (height - portraitSize) / 2);
+            drawInfoText(ctx, title, x + left, top + 10, { color: colors.gold, size: 22, leading: 31 });
+            drawInfoText(ctx, lines, x + left, top + 10 + title.length * 31, { color: colors.muted, size: 17, leading: 25 });
             if (percent !== undefined) {
               const bar = width - 32;
               ctx.fillStyle = colors.rule;
