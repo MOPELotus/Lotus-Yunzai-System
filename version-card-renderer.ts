@@ -1,10 +1,13 @@
 import { join } from "node:path";
 import { realpath } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { drawInfoText, infoCardColors as colors, measureInfoText, renderInfoCard } from "@lotus-yunzai/skia/info-card";
 import { cardAssetFile } from "./local-card-assets.ts";
 import type { VersionCardRelease } from "./version-card-data.ts";
 
-export async function loadVersionCardTheme(directory: string) {
+const defaultDirectory = fileURLToPath(new URL("./assets/version-card/", import.meta.url));
+
+export async function loadVersionCardTheme(directory = process.env.LOTUS_SYSTEM_VERSION_THEME_DIR || defaultDirectory) {
   const root = await realpath(directory).catch(() => undefined);
   if (!root) return;
   for (const prefix of ["", "common/", "resources/common/"]) {

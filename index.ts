@@ -132,7 +132,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     try {
       if (!pro) {
         theme = await loadStatusCardTheme();
-        if (!theme && process.env.LOTUS_SYSTEM_STATUS_THEME_DIR) return fallback();
+        if (!theme) return fallback();
       }
       snapshot = await runtimeStatus?.(context, pro);
     } catch {
@@ -143,12 +143,12 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     rendering = true;
     try {
       if (pro) theme = await loadStatusCardTheme();
-      if (!theme && process.env.LOTUS_SYSTEM_STATUS_THEME_DIR) return fallback();
+      if (!theme) return fallback();
       const model = await collectStatusCard(snapshot, pro);
       const result = await renderStatusCard(model, theme, pro);
       console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       const message = { type: "image" as const, file: result.png };
-      if (!theme || (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky")) return message;
+      if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;
       const { photo } = theme;
       return {
         type: "delivery" as const, message,
@@ -192,7 +192,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (!samples.length || !context || context.message_type === "terminal" || rendering) return fallback();
     rendering = true;
     try {
-      if (signal?.aborted) return fallback();
+      const theme = await loadStatusCardTheme();
+      if (!theme || signal?.aborted) return fallback();
       const result = await renderStatusMonitor(samples, enabled);
       console.log(`[渲染] 运行监控 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       return { type: "image" as const, file: result.png };
@@ -205,9 +206,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   async function versionCard() {
     try {
-      const configured = process.env.LOTUS_SYSTEM_VERSION_THEME_DIR;
-      const themeDirectory = configured ? await loadVersionCardTheme(configured) : undefined;
-      if (configured && !themeDirectory) return versionSummary(runtimeVersion);
+      const themeDirectory = await loadVersionCardTheme();
+      if (!themeDirectory) return versionSummary(runtimeVersion);
       const result = await renderVersionCard(versionCardSections(runtimeVersion), themeDirectory);
       console.log(`[渲染] 版本 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       return { type: "image" as const, file: result.png };
