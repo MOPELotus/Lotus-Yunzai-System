@@ -10,7 +10,9 @@ import type { StatusMonitorSample } from "./status-monitor.ts";
 // Geometry follows Yenai-Plugin fe42a6f, resources/state/monitor.html and css/index.css.
 const width = 650;
 const height = 1530;
-const scale = 1.4;
+const scale = 4;
+// Skia filters and shadow distances use device pixels. Keep their former logical sizes.
+const effectScale = scale / 1.4;
 const lineColor = "#2ec7c9";
 const secondaryColor = "#b6a2de";
 const originalFont = '"Noto Sans CJK SC", sans-serif';
@@ -328,9 +330,9 @@ export function renderStatusMonitor(samples: readonly StatusMonitorSample[], the
   return renderPng(Math.round(width * scale), Math.round(height * scale), ctx => {
     ctx.scale(scale, scale);
     background(ctx, theme, height, width);
-    ctx.shadowBlur = 3;
-    ctx.shadowOffsetY = 1;
-    ctx.shadowOffsetX = 1;
+    ctx.shadowBlur = 3 * effectScale;
+    ctx.shadowOffsetY = 1 * effectScale;
+    ctx.shadowOffsetX = 1 * effectScale;
     ctx.shadowColor = "#000";
     ctx.fillStyle = "#fff";
     ctx.font = `36px ${theme.title}`;

@@ -10,7 +10,9 @@ import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./st
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
 const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
 const logicalWidth = 750;
-const scale = 1.4;
+const scale = 4;
+// Skia filters and shadow distances use device pixels. Keep their former logical sizes.
+const effectScale = scale / 1.4;
 const colors = ["#84A0DF", "#2EC272", "#8070F9"];
 const contacts = ["#F1EDFE", "#FDF1E6", "#E9F4FC"];
 const icons = [
@@ -100,8 +102,8 @@ export function glass(ctx: Context, theme: Pick<Theme, "background">, height: nu
   x: number, y: number, width: number, boxHeight: number, pageWidth = logicalWidth) {
   ctx.save();
   rounded(ctx, x, y, width, boxHeight, 18);
-  ctx.shadowOffsetY = 8;
-  ctx.shadowBlur = 32;
+  ctx.shadowOffsetY = 8 * effectScale;
+  ctx.shadowBlur = 32 * effectScale;
   ctx.shadowColor = "rgba(51,51,52,0.50)";
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.fill();
@@ -110,7 +112,7 @@ export function glass(ctx: Context, theme: Pick<Theme, "background">, height: nu
   ctx.save();
   rounded(ctx, x, y, width, boxHeight, 18);
   ctx.clip();
-  ctx.filter = "blur(14px)";
+  ctx.filter = `blur(${14 * effectScale}px)`;
   background(ctx, theme, height, pageWidth);
   ctx.filter = "none";
   ctx.fillStyle = "rgba(255,255,255,0.45)";
@@ -171,9 +173,9 @@ function drawBadge(ctx: Context, theme: Theme, badge: Badge, x: number, y: numbe
   ctx.save();
   rounded(ctx, x, y, width, 20, 6);
   ctx.fillStyle = badge.color;
-  ctx.shadowOffsetX = -2;
-  ctx.shadowOffsetY = 2;
-  ctx.shadowBlur = 3;
+  ctx.shadowOffsetX = -2 * effectScale;
+  ctx.shadowOffsetY = 2 * effectScale;
+  ctx.shadowBlur = 3 * effectScale;
   ctx.shadowColor = "rgba(8,8,8,0.50)";
   ctx.fill();
   ctx.restore();
@@ -203,18 +205,18 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   }
   ctx.save();
   rounded(ctx, 52, avatarY - 4, 108, 108, 26);
-  ctx.shadowOffsetX = -2;
-  ctx.shadowOffsetY = 2;
-  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = -2 * effectScale;
+  ctx.shadowOffsetY = 2 * effectScale;
+  ctx.shadowBlur = 8 * effectScale;
   ctx.shadowColor = "rgba(8,8,8,0.50)";
   ctx.fillStyle = "rgba(255,255,255,0.65)";
   ctx.fill();
   ctx.restore();
   ctx.save();
   rounded(ctx, 56, avatarY, 100, 100, 25);
-  ctx.shadowOffsetX = -2;
-  ctx.shadowOffsetY = 2;
-  ctx.shadowBlur = 12;
+  ctx.shadowOffsetX = -2 * effectScale;
+  ctx.shadowOffsetY = 2 * effectScale;
+  ctx.shadowBlur = 12 * effectScale;
   ctx.shadowColor = "rgba(8,8,8,0.55)";
   ctx.fillStyle = "white";
   ctx.fill();
@@ -296,9 +298,9 @@ function drawResource(ctx: Context, theme: Theme, resource: StatusResource, inde
   ctx.fill();
   circle(ctx, x, cy, 39);
   ctx.fillStyle = "#fff";
-  ctx.shadowOffsetX = 4;
-  ctx.shadowOffsetY = 4;
-  ctx.shadowBlur = 8;
+  ctx.shadowOffsetX = 4 * effectScale;
+  ctx.shadowOffsetY = 4 * effectScale;
+  ctx.shadowBlur = 8 * effectScale;
   ctx.shadowColor = "#c5ccda";
   ctx.fill();
   ctx.shadowColor = "transparent";
@@ -366,9 +368,9 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
     ctx.textAlign = "center";
     font(ctx, theme, 14);
     ctx.fillStyle = "#fff";
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    ctx.shadowBlur = 1;
+    ctx.shadowOffsetX = 1 * effectScale;
+    ctx.shadowOffsetY = 1 * effectScale;
+    ctx.shadowBlur = 1 * effectScale;
     ctx.shadowColor = "#000";
     text(ctx, "Created By Lotus-Yunzai", 375, footerY + 17);
     const runtimeWidth = ctx.measureText("Bun " + Bun.version).width;

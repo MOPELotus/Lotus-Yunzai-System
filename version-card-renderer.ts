@@ -9,7 +9,9 @@ import type { VersionCardRelease } from "./version-card-data.ts";
 // resources/help/version-info.html, help/version-info.css and common/common.css.
 const directory = fileURLToPath(new URL("./assets/version-card/", import.meta.url));
 const width = 600;
-const scale = 1.2;
+const scale = 4;
+// Skia filters and shadow distances use device pixels. Keep their former logical sizes.
+const effectScale = scale / 1.2;
 const panelX = 10;
 const panelWidth = 575;
 const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -103,9 +105,9 @@ function drawPanel(ctx: Context, theme: Theme, box: ReturnType<typeof layout>["b
   ctx.beginPath();
   ctx.roundRect(0, 0, panelWidth, box.height, 10);
   ctx.shadowColor = "rgba(50,50,50,.80)";
-  ctx.shadowOffsetX = 2;
-  ctx.shadowOffsetY = 2;
-  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 2 * effectScale;
+  ctx.shadowOffsetY = 2 * effectScale;
+  ctx.shadowBlur = 4 * effectScale;
   ctx.fillStyle = "#111c2a";
   ctx.fill();
   ctx.shadowColor = "transparent";
@@ -164,9 +166,9 @@ export async function renderVersionCard(releases: readonly VersionCardRelease[],
     ctx.font = `14px ${theme.font}`;
     ctx.fillStyle = "#fff";
     ctx.shadowColor = "#000";
-    ctx.shadowOffsetX = 1;
-    ctx.shadowOffsetY = 1;
-    ctx.shadowBlur = 1;
+    ctx.shadowOffsetX = 1 * effectScale;
+    ctx.shadowOffsetY = 1 * effectScale;
+    ctx.shadowBlur = 1 * effectScale;
     ctx.fillText("Created By Lotus-Yunzai", width / 2 + 5, footer + 13.5);
   }, "gpu");
 }
