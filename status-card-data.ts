@@ -3,6 +3,7 @@ import { arch, cpus, freemem, platform, totalmem, uptime } from "node:os";
 import { setTimeout } from "node:timers/promises";
 import { collectStatusDetails, type StatusDetailSection } from "./status-card-details.ts";
 import type { StatusMonitorSample } from "./status-monitor.ts";
+import { collectProbeResults } from "./status-network-probes.ts";
 
 export interface RuntimeStatusAccount {
   readonly name: string;
@@ -51,6 +52,7 @@ export interface StatusCardModel extends RuntimeStatusSnapshot {
   readonly resources: readonly StatusResource[];
   readonly details?: readonly StatusDetailSection[];
   readonly networkHistory?: readonly StatusMonitorSample[];
+  readonly redisHistory?: readonly StatusMonitorSample[];
 }
 
 const GiB = 1024 ** 3;
@@ -92,11 +94,15 @@ export async function activeMemory() {
 }
 
 export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: boolean,
-  config: Record<string, unknown> = {}, samples: readonly StatusMonitorSample[] = []): Promise<StatusCardModel> {
+  config: Record<string, unknown> = {}, samples: readonly StatusMonitorSample[] = [], signal?: AbortSignal): Promise<StatusCardModel> {
   const cores = cpus();
   const before = cpuTimes(cores);
-  const [memory, detailed] = await Promise.all([memoryInfo(), pro
-    ? collectStatusDetails(config, snapshot.redis).catch(() => undefined) : undefined, setTimeout(120)]);
+  const [memory, detailed, probes] = await Promise.all([
+    memoryInfo(),
+    pro ? collectStatusDetails(config, snapshot.redis).catch(() => undefined) : undefined,
+    pro ? collectProbeResults(config, signal).catch(() => undefined) : undefined,
+    setTimeout(120),
+  ]);
   const load = cpuPercent(before, cpuTimes());
   const total = totalmem();
   const usedWithCache = total - freemem();
@@ -132,6 +138,13 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
   const networkHistory = pro && config.closedChart !== true &&
     (charts === null || typeof charts !== "object" || !("show" in charts) || charts.show === true || charts.show === "pro") &&
     samples.filter(sample => sample.network).length > 1 ? samples.slice(-60) : undefined;
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  const redisHistory = pro && config.showRedisInfo !== false && config.closedChart !== true
+    ? samples.filter(sample => sample.at >= cutoff).slice(-60) : [];
+  const details = detailed?.sections ?? [];
+  const network = details.findIndex(section => section.title === "网络信息");
+  if (probes) details.splice(network === -1 ? 0 : network + 1, 0, probes);
   return { ...session, platform: platform(), runtime: `${arch()} · Bun ${Bun.version}`, uptime: uptime(), resources: [...new Set(selected)],
-    ...(detailed?.sections.length && { details: detailed.sections }), ...(networkHistory && { networkHistory }) };
+    ...(details.length && { details }), ...(networkHistory && { networkHistory }),
+    ...(redisHistory.length && { redisHistory }) };
 }

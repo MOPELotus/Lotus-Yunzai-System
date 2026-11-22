@@ -1,6 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile, readdir, statfs } from "node:fs/promises";
 import { arch, availableParallelism, cpus, release, totalmem } from "node:os";
+import { basename } from "node:path";
 import { promisify } from "node:util";
 import { setTimeout } from "node:timers/promises";
 import { readStatusIoCounters, statusIoRates, type StatusIoCounters } from "./status-monitor-io.ts";
@@ -150,7 +151,7 @@ function processRows(previous: ReadonlyMap<string, ProcessReading>, current: Rea
   const selected = top?.show === false ? [] : order === "cpu" ? byCpu.slice(0, limit)
     : order === "cpu_mem" ? [...byCpu.slice(0, Math.ceil(limit / 2)), ...byMemory.slice(0, Math.floor(limit / 2))]
       : byMemory.slice(0, limit);
-  const names = literalNames(config?.list);
+  const names = processNames(config?.list);
   const observed = [...new Map([...selected, ...full.filter(row => names.includes(row.name))].map(row => [row.pid, row])).values()];
   return [
     ["进程数", `全部 ${full.length}　运行 ${counts.running}　休眠 ${counts.sleeping}　阻塞 ${counts.blocked}　其他 ${counts.other}`],
@@ -160,6 +161,22 @@ function processRows(previous: ReadonlyMap<string, ProcessReading>, current: Rea
 
 function literalNames(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((name): name is string => typeof name === "string" && name.length <= 96).slice(0, 64) : [];
+}
+
+function shellName() {
+  const shell = process.env.SHELL ?? process.env.COMSPEC ?? process.env.ComSpec ?? "";
+  return label(basename(shell.replaceAll("\\", "/")));
+}
+
+function processNames(value: unknown) {
+  const ownTitle = "$process.title";
+  const shellExpression = "$(process.env.SHELL || process.env.COMSPEC || 'sh').split(/\\/|\\\\/).at(-1)";
+  return literalNames(value).flatMap(name => {
+    if (name === ownTitle) return label(process.title);
+    if (name === shellExpression) return shellName() || "sh";
+    if (!name.startsWith("$")) return name;
+    return [];
+  });
 }
 
 function object(value: unknown): Record<string, unknown> | undefined {
@@ -179,33 +196,87 @@ function totalTraffic(snapshot: StatusIoCounters["network"]) {
 
 function redisRows(redis: RuntimeStatusRedis): StatusDetailSection["rows"] {
   const value = (key: keyof RuntimeStatusRedis) => redis[key] ?? "—";
+  const capacity = redis.maxMemory || totalmem();
+  const used = redis.usedMemory;
+  const percentage = used !== undefined && capacity > 0 ? `（${(used / capacity * 100).toFixed(2)}%）` : "";
   return [
     ["版本", `${value("version")}　运行 ${value("uptime")} 秒`],
-    ["内存", `${redis.usedMemory === undefined ? "—" : bytes(redis.usedMemory)}　峰值 ${redis.peakMemory === undefined ? "—" : bytes(redis.peakMemory)}${redis.maxMemory ? "　上限 " + bytes(redis.maxMemory) : ""}`],
+    ["内存", `${used === undefined ? "—" : bytes(used)}${percentage}　峰值 ${redis.peakMemory === undefined ? "—" : bytes(redis.peakMemory)}${redis.maxMemory ? "　上限 " + bytes(redis.maxMemory) : ""}`],
     ["连接", `客户端 ${value("clients")}　阻塞 ${value("blocked")}　累计 ${value("connections")}`],
     ["累计命令", String(value("commands"))],
     ...redis.databases.map(db => [`db${db.index}`, `键数 ${db.keys}　有期限 ${db.expires}　平均 TTL ${db.averageTtl} ms`] as const),
   ];
 }
 
+async function readBoundedText(file: string, maximum: number) {
+  const source = Bun.file(file);
+  if (!await source.exists() || source.size > maximum) return "";
+  return source.slice(0, maximum).text().catch(() => "");
+}
+
+async function linuxPackageCounts() {
+  const [debian, alpine, arc, flatpak] = await Promise.all([
+    readBoundedText("/var/lib/dpkg/status", 16 * 1024 * 1024),
+    readBoundedText("/lib/apk/db/installed", 16 * 1024 * 1024),
+    readdir("/var/lib/pacman/local", { withFileTypes: true }).catch(() => []),
+    readdir("/var/lib/flatpak/app", { withFileTypes: true }).catch(() => []),
+  ]);
+  const counts = [
+    ["dpkg", [...debian.matchAll(/^Status: install ok installed$/gmu)].length],
+    ["apk", [...alpine.matchAll(/^P:.+/gmu)].length],
+    ["pacman", arc.filter(dir => dir.isDirectory()).length],
+    ["flatpak", flatpak.filter(dir => dir.isDirectory()).length],
+  ] as const;
+  return counts.filter(([, count]) => count > 0).map(([name, count]) => `${count} (${name})`).join(" · ");
+}
+
+export function parseStatusDisplayModes(value: string) {
+  return [...new Set([...value.matchAll(/^([1-9]\d{2,4}x[1-9]\d{2,4})$/gmu)].map(([, mode]) => mode!))].slice(0, 4);
+}
+
+async function linuxDisplayModes() {
+  const root = "/sys/class/drm";
+  const entries = await readdir(root).catch(() => []);
+  const connectors = entries.filter(name => /^card\d+-[\w-]{1,40}$/u.test(name)).slice(0, 24);
+  const modes = await Promise.all(connectors.map(async name => {
+    const connector = root + "/" + name;
+    const status = await readFile(connector + "/status", "utf8").catch(() => "");
+    if (status.trim() !== "connected") return [];
+    return parseStatusDisplayModes(await readFile(connector + "/modes", "utf8").catch(() => ""));
+  }));
+  return [...new Set(modes.flat())].slice(0, 8).join(" · ");
+}
+
 async function systemDetails(gpu: readonly StatusResource[]) {
   const localAttribute = (file: string) => process.platform === "linux"
     ? readFile(file, "utf8").then(label, () => "") : Promise.resolve("");
-  const [os, board, bios] = await Promise.all([
+  const linux = process.platform === "linux";
+  const [os, board, bios, biosDate, vendor, product, packages, displays] = await Promise.all([
     process.platform === "linux"
       ? readFile("/etc/os-release", "utf8").then(raw => label(/^PRETTY_NAME="?([^"\n]+)"?$/mu.exec(raw)?.[1] ?? ""), () => "")
       : "",
     localAttribute("/sys/class/dmi/id/board_name"),
     localAttribute("/sys/class/dmi/id/bios_version"),
+    localAttribute("/sys/class/dmi/id/bios_date"),
+    localAttribute("/sys/class/dmi/id/sys_vendor"),
+    localAttribute("/sys/class/dmi/id/product_name"),
+    linux ? linuxPackageCounts() : "",
+    linux ? linuxDisplayModes() : "",
   ]);
   const cpu = label(cpus()[0]?.model ?? "");
+  const shell = shellName();
+  const host = [...new Set([vendor, product].filter(Boolean))].join(" · ");
   return { title: "FastFetch", icon: "系统", rows: [
     ["系统", os || process.platform], ["内核", release()], ["架构", arch()],
     ["处理器", [cpu, `${availableParallelism()} 逻辑核心`].filter(Boolean).join(" · ")],
     ...gpu.flatMap(item => item.detail ? [["GPU", item.detail] as const] : []),
     ["物理内存", bytes(totalmem())],
     ...(board ? [["主板", board] as const] : []),
-    ...(bios ? [["BIOS", bios] as const] : []),
+    ...(bios ? [["BIOS", [bios, biosDate].filter(Boolean).join(" · ")] as const] : []),
+    ...(packages ? [["包", packages] as const] : []),
+    ...(host ? [["主机", host] as const] : []),
+    ...(shell ? [["终端", shell] as const] : []),
+    ...(displays ? [["分辨率（支持）", displays] as const] : []),
   ] } as const satisfies StatusDetailSection;
 }
 

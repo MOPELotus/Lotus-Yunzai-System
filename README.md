@@ -7,7 +7,7 @@
 | `#状态` | 查看宿主运行状态和 Bun 版本 |
 | `#状态Pro` | 主人私聊或授权终端查看详细状态 |
 | `#监控` | 查看 CPU、RAM、网络与磁盘趋势 |
-| `#帮助` | 查看系统指令 |
+| `#帮助` | 打开在线使用指南 |
 | `#诊断` | 查看运行时、运行时间和进程内存 |
 
 在 [Lotus-Yunzai](https://github.com/MOPELotus/Lotus-Yunzai) 根目录运行 `bun scripts/bootstrap.ts` 初始化，再运行 `bun app.ts`。可从终端或已接入的 OneBot 私聊、群聊发送指令。
@@ -17,3 +17,7 @@
 监控默认每分钟采样一次，保留最近 60 个采样点。可在状态配置的 `monitor` 下调整 `open`、`getDataInterval`（毫秒）、`saveDataNumber` 和 `openRedisSaveData`。接入 Valkey 时默认保留监控历史 12 小时。配置和本地原主题由 `LOTUS_SYSTEM_STATUS_CONFIG`、`LOTUS_SYSTEM_STATUS_THEME_DIR` 指定。无主题时返回最近一次采样的文字摘要。
 
 网络和磁盘显示 Linux 内核提供的底层网卡与整块磁盘聚合吞吐。界面和历史只记录速率。内核数据缺失、设备变更或计数回绕时，该时段留空。
+
+已接入 Valkey 时，`#状态Pro` 显示最近一小时的连接数趋势。FastFetch 信息从本机读取，包括系统、硬件、包数量、登录 Shell 和已连接显示端的分辨率。
+
+站点测试默认关闭。若要在 `#状态Pro` 中查看 HTTP 状态和延迟，请在 `config/system-status.yaml` 将 `networkProbesEnabled` 设为 `true`，并设置 `psTestSites.show: pro` 和 `psTestSites.list`。列表项沿用 `name`、`url` 和 `useProxy`，地址使用公网 HTTPS。代理站点使用显式配置的 `psTestSites.proxy`。

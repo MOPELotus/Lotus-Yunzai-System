@@ -7,7 +7,6 @@ import { loadCardFont, loadCardImage } from "./local-card-assets.ts";
 import { loadStatusBackground, readStatusBackground, type StatusPhoto } from "./status-background.ts";
 import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./status-card-data.ts";
 import type { StatusDetailSection } from "./status-card-details.ts";
-import type { StatusMonitorSample } from "./status-monitor.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
 const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
@@ -382,12 +381,20 @@ function drawDetails(ctx: Context, theme: Theme, height: number, section: Status
 const historyHeight = 222;
 const historyTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Shanghai" });
 
-function drawNetworkHistory(ctx: Context, theme: Theme, height: number, history: readonly StatusMonitorSample[], y: number) {
-  sectionHeader(ctx, theme, height, y, historyHeight, "网络", "网络流量");
-  const readings = history.filter(sample => sample.network !== undefined);
+interface StatusChart {
+  readonly title: string;
+  readonly icon: StatusDetailSection["icon"];
+  readonly axes: (maximum: number) => string;
+  readonly series: readonly { readonly label: string; readonly color: string }[];
+  readonly history: readonly { readonly at: number; readonly values?: readonly number[] }[];
+}
+
+function drawHistory(ctx: Context, theme: Theme, height: number, chart: StatusChart, y: number) {
+  sectionHeader(ctx, theme, height, y, historyHeight, chart.icon, chart.title);
+  const readings = chart.history.filter(sample => sample.values !== undefined);
   const first = readings[0]!.at;
   const last = readings.at(-1)!.at;
-  const maximum = Math.max(1, ...readings.flatMap(sample => sample.network!));
+  const maximum = Math.max(1, ...readings.flatMap(sample => sample.values!));
   const top = y + 75;
   const bottom = y + 176;
   const left = 119;
@@ -403,27 +410,27 @@ function drawNetworkHistory(ctx: Context, theme: Theme, height: number, history:
     ctx.moveTo(left, row);
     ctx.lineTo(right, row);
     ctx.stroke();
-    text(ctx, `${(maximum * (1 - i / 2) / 1024).toFixed(1)} KiB/s`, left - 8, row + 4, 66);
+    text(ctx, chart.axes(maximum * (1 - i / 2)), left - 8, row + 4, 66);
   }
   ctx.textAlign = "left";
   text(ctx, historyTime.format(first), left, bottom + 20);
   ctx.textAlign = "right";
   text(ctx, historyTime.format(last), right, bottom + 20);
   ctx.textAlign = "left";
-  for (const [index, color] of ["#177873", "#6a4d9e"].entries()) {
+  for (const [index, { label, color }] of chart.series.entries()) {
     ctx.fillStyle = color;
-    text(ctx, index === 0 ? "上传" : "下载", 588 + index * 56, y + 34);
+    text(ctx, label, 588 + index * 56, y + 34);
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
     let connected = false;
-    for (const sample of history) {
-      if (!sample.network) {
+    for (const sample of chart.history) {
+      if (!sample.values) {
         connected = false;
         continue;
       }
       const x = left + (sample.at - first) / Math.max(1, last - first) * (right - left);
-      const point = bottom - sample.network[index]! / maximum * (bottom - top);
+      const point = bottom - sample.values[index]! / maximum * (bottom - top);
       if (connected) ctx.lineTo(x, point);
       else ctx.moveTo(x, point);
       connected = true;
@@ -432,13 +439,23 @@ function drawNetworkHistory(ctx: Context, theme: Theme, height: number, history:
   }
 }
 
-function safeHistory(networkHistory: StatusCardModel["networkHistory"]) {
-  return networkHistory?.map(sample => {
-    if (!Number.isFinite(sample.at)) return;
-    const network = sample.network;
-    if (Array.isArray(network) && network.length === 2 && network.every(value => Number.isFinite(value) && value >= 0)) return sample;
-    return { at: sample.at };
-  }).filter(sample => sample !== undefined);
+function historyChart(model: StatusCardModel): StatusChart[] {
+  const candidates: StatusChart[] = [];
+  const network = model.networkHistory?.filter(row => Number.isSafeInteger(row.at)).map(({ at, network }) => ({
+    at, values: Array.isArray(network) && network.length === 2 && network.every(value => Number.isFinite(value) && value >= 0)
+      ? network : undefined,
+  }));
+  if (network) candidates.push({
+    title: "网络流量", icon: "网络", axes: value => (value / 1024).toFixed(1) + " KiB/s",
+    series: [{ label: "上传", color: "#177873" }, { label: "下载", color: "#6a4d9e" }], history: network,
+  });
+  const redis = model.redisHistory?.filter(row => Number.isSafeInteger(row.at)).map(({ at, redisClients }) => ({
+    at, values: redisClients !== undefined && Number.isSafeInteger(redisClients) && redisClients >= 0 ? [redisClients] : undefined,
+  }));
+  if (redis) candidates.push({
+    title: "Redis 连接数", icon: "redis", axes: value => String(value), series: [{ label: "客户端", color: "#a64136" }], history: redis,
+  });
+  return candidates.filter(chart => chart.history.filter(sample => sample.values).length > 1);
 }
 
 export async function renderStatusCard(model: StatusCardModel, theme: Theme, inlineImageByteLimit?: number) {
@@ -457,9 +474,8 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
   const resourceY = systemY + 137;
   const detailsY = resourceY + resourceHeight + (resources.length ? 20 : 0);
   const historyY = detailsY + details.reduce((sum, section) => sum + detailHeight(section) + 20, 0);
-  const networkHistory = safeHistory(model.networkHistory);
-  const showHistory = networkHistory && networkHistory.filter(row => row.network).length > 1;
-  const footerY = historyY + (showHistory ? historyHeight + 20 : 0);
+  const charts = historyChart(model);
+  const footerY = historyY + charts.length * (historyHeight + 20);
   const height = footerY + 60;
   function draw(ctx: Context) {
     ctx.fontSynthesis = false;
@@ -488,7 +504,7 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
       drawDetails(ctx, theme, height, section, y);
       y += detailHeight(section) + 20;
     }
-    if (showHistory) drawNetworkHistory(ctx, theme, height, networkHistory, historyY);
+    for (const [index, chart] of charts.entries()) drawHistory(ctx, theme, height, chart, historyY + index * (historyHeight + 20));
 
     ctx.textAlign = "center";
     font(ctx, theme, 14);

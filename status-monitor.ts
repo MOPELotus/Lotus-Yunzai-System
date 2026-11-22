@@ -12,6 +12,7 @@ export interface StatusMonitorSample {
   readonly ram?: number;
   readonly network?: Rates;
   readonly disk?: Rates;
+  readonly redisClients?: number;
 }
 
 export interface StatusMonitorSettings {
@@ -60,8 +61,11 @@ function sample(value: unknown, now: number): StatusMonitorSample | undefined {
   const ram = typeof row.ram === "number" && Number.isSafeInteger(row.ram) && row.ram >= 0 ? row.ram : undefined;
   const network = rates(row.network);
   const disk = rates(row.disk);
-  if (cpu !== undefined || ram !== undefined || network || disk) {
-    return { at: row.at, cpu, ram, ...(network && { network }), ...(disk && { disk }) };
+  const redisClients = typeof row.redisClients === "number" && Number.isSafeInteger(row.redisClients) && row.redisClients >= 0
+    ? row.redisClients : undefined;
+  if (cpu !== undefined || ram !== undefined || network || disk || redisClients !== undefined) {
+    return { at: row.at, cpu, ram, ...(network && { network }), ...(disk && { disk }),
+      ...(redisClients !== undefined && { redisClients }) };
   }
 }
 
@@ -82,7 +86,7 @@ function parseHistory(raw: string | null | undefined, now: number, limit: number
 }
 
 export function createStatusMonitor(settings: StatusMonitorSettings, {
-  storage, signal, now = Date.now, readCpu = cpuTimes, readRam = activeMemory, readIo = readStatusIoCounters,
+  storage, signal, now = Date.now, readCpu = cpuTimes, readRam = activeMemory, readIo = readStatusIoCounters, readRedisClients,
 }: {
   readonly storage?: StatusMonitorStorage;
   readonly signal?: AbortSignal;
@@ -90,6 +94,7 @@ export function createStatusMonitor(settings: StatusMonitorSettings, {
   readonly readCpu?: () => ReturnType<typeof cpuTimes>;
   readonly readRam?: () => Promise<number | undefined>;
   readonly readIo?: () => Promise<StatusIoCounters>;
+  readonly readRedisClients?: () => Promise<number | undefined>;
 } = {}) {
   const persistent = settings.persist ? storage : undefined;
   let rows: StatusMonitorSample[] = [];
@@ -116,12 +121,15 @@ export function createStatusMonitor(settings: StatusMonitorSettings, {
     const cpu = previous && cpuPercent(previous, current);
     previous = current;
     const currentIo = readCounters();
-    const [ram, beforeIo, afterIo] = await Promise.all([readRam().catch(() => undefined), previousIo, currentIo]);
+    const [ram, beforeIo, afterIo, redisClients] = await Promise.all([
+      readRam().catch(() => undefined), previousIo, currentIo,
+      readRedisClients ? Promise.resolve().then(readRedisClients).catch(() => undefined) : undefined,
+    ]);
     previousIo = currentIo;
     if (stopped) return;
     const network = statusIoRates(beforeIo?.network, afterIo.network);
     const disk = statusIoRates(beforeIo?.disk, afterIo.disk);
-    const row = sample({ at, cpu, ram, network, disk }, at);
+    const row = sample({ at, cpu, ram, network, disk, redisClients }, at);
     if (!row || (rows.at(-1)?.at ?? 0) >= row.at) return;
     rows = [...retained(at), row].slice(-settings.limit);
     await persistent?.set(historyKey, JSON.stringify(rows), statusMonitorTtl).catch(() => {});

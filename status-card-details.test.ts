@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { collectStatusCard } from "./status-card-data.ts";
-import { parseStatusGpu, parseStatusMounts, parseStatusProcess } from "./status-card-details.ts";
+import { parseStatusDisplayModes, parseStatusGpu, parseStatusMounts, parseStatusProcess } from "./status-card-details.ts";
 
 test("仅识别本地卷，根卷与绑定挂载不重复，隐藏挂载不计入", () => {
   expect(parseStatusMounts([
@@ -26,11 +26,18 @@ test("显卡采样拒绝占用超界，进程采样不读取命令参数", () =>
 });
 
 test("普通状态不收集扩展诊断或输出 Redis 原始数据和历史", async () => {
+  const at = Date.now() - 1000;
   const model = await collectStatusCard({ accounts: [], redis: { version: "8.1.1", databases: [] } }, false,
     { showFastFetch: true, showRedisInfo: true, processLoad: { show: true } },
-    [{ at: 1, network: [2, 3] }, { at: 2, network: [3, 4] }]);
+    [{ at, network: [2, 3], redisClients: 10 }, { at: at + 1, network: [3, 4], redisClients: 12 }]);
   expect(model.details).toBeUndefined();
   expect(model.networkHistory).toBeUndefined();
+  expect(model.redisHistory).toBeUndefined();
   expect(model.redis).toBeUndefined();
   expect(model.resources.every(resource => ["CPU", "RAM"].includes(resource.title))).toBe(true);
+});
+
+test("显示器只输出已连接输出端提供的分辨率格式", () => {
+  expect(parseStatusDisplayModes("3840x2160\n1920x1080\n1920x1080\ninvalid\n720x480\n"))
+    .toEqual(["3840x2160", "1920x1080", "720x480"]);
 });

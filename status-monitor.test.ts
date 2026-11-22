@@ -85,6 +85,28 @@ test("暂停监控可看原有样本，关闭持久化时完全不访问存储",
   expect(requests).toBe(1);
 });
 
+test("Redis 连接数空闲采样数值可续存，拒绝无效值与诊断内容", async () => {
+  let at = Date.now();
+  let count = 0;
+  const storage = {
+    raw: JSON.stringify([{ at: at - 1, redisClients: 3, credential: "private" }, { at, redisClients: -1 }]),
+    async get() { return this.raw; },
+    async set(_key: string, raw: string) { this.raw = raw; },
+  };
+  const monitor = createStatusMonitor(statusMonitorSettings(), {
+    storage, now: () => at, readCpu: () => ({ idle: 0, total: 100 }),
+    readRam: async () => undefined, readIo: async () => ({}), readRedisClients: async () => count,
+  });
+  expect((await monitor.snapshot()).samples).toEqual([{ at: at - 1, redisClients: 3 }]);
+  ++at;
+  await monitor.tick();
+  expect(JSON.parse(storage.raw)).toEqual([{ at: at - 2, redisClients: 3 }, { at, redisClients: 0 }]);
+  count = -5;
+  ++at;
+  await monitor.tick();
+  expect((await monitor.snapshot()).samples.at(-1)?.redisClients).toBe(0);
+});
+
 test("监控尚无样本时返回文字说明", async () => {
   const { commands } = createModule({});
   expect(await commands["#监控"]()).toBe("Lotus-Yunzai 监控\n等待首次采样。");

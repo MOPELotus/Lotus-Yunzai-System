@@ -85,18 +85,22 @@ function uptime(seconds: number): string {
 }
 
 export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus,
-  statusPhotoStorage, statusMonitorStorage, signal }: {
+  statusPhotoStorage, statusMonitorStorage, statusMonitorRedisClients, signal }: {
   readonly messageStatistics?: Statistics;
   readonly runtimeDiagnostics?: RuntimeDiagnostics;
   readonly runtimeVersion?: RuntimeVersion;
   readonly runtimeStatus?: RuntimeStatus;
   readonly statusPhotoStorage?: StatusPhotoStorage;
   readonly statusMonitorStorage?: StatusMonitorStorage;
+  readonly statusMonitorRedisClients?: (signal: AbortSignal) => Promise<number | undefined>;
   readonly signal?: AbortSignal;
 }) {
   const photos = createStatusPhotoLedger(statusPhotoStorage, signal);
   const monitor = signal ? readStatusConfig().then(config =>
-    createStatusMonitor(statusMonitorSettings(config), { storage: statusMonitorStorage, signal })) : undefined;
+    createStatusMonitor(statusMonitorSettings(config), {
+      storage: statusMonitorStorage, signal,
+      readRedisClients: config?.showRedisInfo !== false && statusMonitorRedisClients ? () => statusMonitorRedisClients(signal) : undefined,
+    })) : undefined;
   function withRuntime(summary: string, context?: DiagnosticsContext): string {
     if (!context || (context.isMaster !== true && context.runtimeDiagnosticsScope !== "milky")) return summary;
 
@@ -139,7 +143,9 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       if (!theme) return fallback();
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       const history = pro ? await (await monitor)?.snapshot() : undefined;
-      const model = await collectStatusCard(snapshot, pro, config, history?.samples);
+      const sessionSignal = context.privateCredentialSignal;
+      const diagnosticSignal = signal && sessionSignal ? AbortSignal.any([signal, sessionSignal]) : signal ?? sessionSignal;
+      const model = await collectStatusCard(snapshot, pro, config, history?.samples, diagnosticSignal);
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       const result = await renderStatusCard(model, theme, context.inlineImageByteLimit);
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;

@@ -68,6 +68,7 @@ export function mergeLegacyStatusConfig(current: Record<string, unknown>, legacy
   const backdropDefault = legacyStyle?.backdropDefault;
   if (backdropDefault === "random" || isPhoto(backdropDefault)) defaults.style = { backdropDefault };
   const sections = ["monitor", "processLoad", "chartsCfg"];
+  if (current.networkProbesEnabled === true) sections.push("psTestSites");
   for (const key of sections) {
     const previous = object(legacy[key]);
     if (previous) defaults[key] = previous;
