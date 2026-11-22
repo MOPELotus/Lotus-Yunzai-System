@@ -145,7 +145,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       if (pro) theme = await loadStatusCardTheme();
       if (!theme) return fallback();
       const model = await collectStatusCard(snapshot, pro);
-      const result = await renderStatusCard(model, theme, pro);
+      const result = await renderStatusCard(model, theme);
       console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       const message = { type: "image" as const, file: result.png };
       if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;

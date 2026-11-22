@@ -98,6 +98,15 @@ test("状态账号头像与在线图标读取原主题，缺失或越界时保�
     expect(fallback?.photo.name).toBe("1.png");
     expect(fallback?.avatar).toBeUndefined();
     expect(fallback?.online).toBeUndefined();
+
+    await rm(avatar);
+    await rm(online);
+    await writeFile(avatar, "corrupted image");
+    await writeFile(online, "corrupted image");
+    const corrupted = await loadStatusCardTheme(theme);
+    expect(corrupted?.photo.name).toBe("1.png");
+    expect(corrupted?.avatar).toBeUndefined();
+    expect(corrupted?.online).toBeUndefined();
   } finally {
     if (previous === undefined) delete process.env.LOTUS_SYSTEM_STATUS_CONFIG;
     else process.env.LOTUS_SYSTEM_STATUS_CONFIG = previous;
