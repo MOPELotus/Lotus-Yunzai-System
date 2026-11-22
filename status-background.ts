@@ -5,7 +5,7 @@ import { loadImage } from "skia-canvas";
 import { cardAssetFile } from "./local-card-assets.ts";
 
 const defaultConfig = new URL("../../config/system-status.yaml", import.meta.url);
-const legacyConfig = new URL("../../plugins/yenai-plugin/config/config/state.yaml", import.meta.url);
+const legacyStatusConfig = new URL("../../plugins/yenai-plugin/config/config/state.yaml", import.meta.url);
 const backdropDirectory = "state/img/bg";
 
 export interface StatusPhoto {
@@ -53,16 +53,39 @@ async function readConfig(source: string | URL): Promise<Record<string, unknown>
   }
 }
 
+export function mergeLegacyStatusConfig(current: Record<string, unknown>, legacy?: Record<string, unknown>) {
+  const defaults: Record<string, unknown> = {};
+  if (!legacy) return current;
+  for (const key of ["defaultState", "noPro", "closedChart"]) {
+    if (typeof legacy[key] === "boolean") defaults[key] = legacy[key];
+  }
+  for (const key of ["showRedisInfo", "showFastFetch"]) {
+    const value = legacy[key];
+    if (typeof value === "boolean" || value === "pro" || (key === "showFastFetch" && value === "default")) defaults[key] = value;
+  }
+  if (Array.isArray(legacy.systemResources)) defaults.systemResources = legacy.systemResources;
+  const legacyStyle = object(legacy.style);
+  const backdropDefault = legacyStyle?.backdropDefault;
+  if (backdropDefault === "random" || isPhoto(backdropDefault)) defaults.style = { backdropDefault };
+  const sections = ["monitor", "processLoad", "chartsCfg"];
+  for (const key of sections) {
+    const previous = object(legacy[key]);
+    if (previous) defaults[key] = previous;
+  }
+  const merged = { ...defaults, ...current };
+  for (const key of ["style", ...sections]) {
+    const previous = object(defaults[key]);
+    const override = object(current[key]);
+    if (previous && override) merged[key] = { ...previous, ...override };
+  }
+  return merged;
+}
+
 export async function readStatusConfig(source?: string | URL): Promise<Record<string, unknown> | undefined> {
   const configured = source ?? (process.env.LOTUS_SYSTEM_STATUS_CONFIG || undefined);
   const current = await readConfig(configured ?? defaultConfig);
-  if (!current || configured || ("defaultState" in current && "noPro" in current)) return current;
-  const legacy = await readConfig(legacyConfig);
-  return {
-    ...(typeof legacy?.defaultState === "boolean" ? { defaultState: legacy.defaultState } : {}),
-    ...(typeof legacy?.noPro === "boolean" ? { noPro: legacy.noPro } : {}),
-    ...current,
-  };
+  if (!current || configured) return current;
+  return mergeLegacyStatusConfig(current, await readConfig(legacyStatusConfig));
 }
 
 export async function readStatusBackground(source?: string | URL): Promise<string | undefined> {

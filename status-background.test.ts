@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadStatusBackground, readStatusBackground, readStatusOriginal } from "./status-background.ts";
+import { loadStatusBackground, mergeLegacyStatusConfig, readStatusBackground, readStatusOriginal } from "./status-background.ts";
 
 const onePixel = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQI12P4z8DwHwAFAAH/cpxSZwAAAABJRU5ErkJggg==", "base64",
@@ -10,6 +10,22 @@ const onePixel = Buffer.from(
 const twoPixels = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVQI12NkYPj/n4GBgQEACwcCALXYMdcAAAAASUVORK5CYII=", "base64",
 );
+
+test("延续本地旧状态设置，当前配置优先且舍弃远程旧背景", () => {
+  const settings = mergeLegacyStatusConfig({
+    defaultState: false, noPro: false, monitor: { open: true }, style: { botNameColor: "#abc" },
+  }, {
+    defaultState: true, noPro: true, showFastFetch: "default", systemResources: ["CPU", "Node", "GPU"],
+    monitor: { open: false, saveDataNumber: 60 }, showRedisInfo: "pro",
+    style: { backdrop: "https://background.invalid", backdropDefault: "old.jpg" },
+    psTestSites: { show: true, list: [{ url: "http://localhost" }] },
+  });
+  expect(settings).toEqual({
+    defaultState: false, noPro: false, showFastFetch: "default", systemResources: ["CPU", "Node", "GPU"],
+    monitor: { open: true, saveDataNumber: 60 }, showRedisInfo: "pro",
+    style: { botNameColor: "#abc", backdropDefault: "old.jpg" },
+  });
+});
 
 test("只解析旧 style.backdropDefault 并接受主题照片文件名", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lotus-status-config-"));
