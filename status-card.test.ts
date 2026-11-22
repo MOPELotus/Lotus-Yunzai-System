@@ -34,7 +34,14 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
     expect(await commands["#状态Pro"]("", { message_type: "terminal", isMaster: true })).toContain("Lotus-Yunzai 运行诊断");
     expect(await commands["#状态Pro"]("", { ...ordinary, runtimeDiagnosticsScope: "milky" })).toContain("当前会话无法");
     expect(await commands["#状态"]("", ordinary)).toContain("Lotus-Yunzai 正在运行");
-    expect(aliases).toEqual({ "#状态pro": "#状态Pro", "#星铁帮助": "#帮助", "#绝区零帮助": "#帮助", "#星铁help": "#帮助", "#绝区零help": "#帮助" });
+    expect(aliases).toEqual({
+      "#状态pro": "#状态Pro",
+      "#help": "#帮助",
+      "#星铁帮助": "#帮助",
+      "#星铁help": "#帮助",
+      "#绝区零帮助": "#帮助",
+      "#绝区零help": "#帮助",
+    });
     expect(commands["#帮助"]()).toBe("https://www.lotusshared.cn/yunzai/");
     expect(await commands["#状态Pro"]("多余参数", owner)).toBe("用法：#状态Pro。");
     for (const name of ["#椰奶状态", "#椰奶状态Pro", "#椰奶状态pro", "#椰奶监控"]) {
