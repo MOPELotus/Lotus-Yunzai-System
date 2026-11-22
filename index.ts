@@ -254,7 +254,14 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     dispose: async () => (await monitor)?.dispose(),
     fallback,
     fallbackFeatures: () => ["[system] 状态"],
-    aliases: { "#状态pro": "#状态Pro", "#星铁帮助": "#帮助", "#绝区零帮助": "#帮助", "#星铁help": "#帮助", "#绝区零help": "#帮助" },
+    aliases: {
+      "#状态pro": "#状态Pro",
+      "#help": "#帮助",
+      "#星铁帮助": "#帮助",
+      "#星铁help": "#帮助",
+      "#绝区零帮助": "#帮助",
+      "#绝区零help": "#帮助",
+    },
     commands: {
       "#状态": status,
       "#状态Pro": proStatus,
