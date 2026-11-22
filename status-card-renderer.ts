@@ -208,7 +208,7 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
     ctx.fillRect(x - 37, avatarY + offset - 37, 74, 74);
   }
   ctx.save();
-  circle(ctx, 106, avatarY + 50, 54);
+  rounded(ctx, 52, avatarY - 4, 108, 108, 26);
   ctx.shadowOffsetX = -2 * effectScale;
   ctx.shadowOffsetY = 2 * effectScale;
   ctx.shadowBlur = 8 * effectScale;
@@ -217,7 +217,7 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   ctx.fill();
   ctx.restore();
   ctx.save();
-  circle(ctx, 106, avatarY + 50, 50);
+  rounded(ctx, 56, avatarY, 100, 100, 25);
   ctx.shadowOffsetX = -2 * effectScale;
   ctx.shadowOffsetY = 2 * effectScale;
   ctx.shadowBlur = 12 * effectScale;
@@ -242,9 +242,9 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   }
   ctx.restore();
   if (theme.online) {
-    ctx.drawImage(theme.online, 132, avatarY + 76, 20, 20);
+    ctx.drawImage(theme.online, 146, avatarY + 86, 20, 20);
   } else {
-    circle(ctx, 142, avatarY + 86, 8);
+    circle(ctx, 156, avatarY + 96, 8);
     ctx.fillStyle = "#49d79c";
     ctx.fill();
     ctx.strokeStyle = "#fff";
