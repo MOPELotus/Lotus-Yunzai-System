@@ -251,7 +251,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     dispose: async () => (await monitor)?.dispose(),
     fallback,
     fallbackFeatures: () => ["[system] 状态"],
-    aliases: { "#状态pro": "#状态Pro" },
+    aliases: { "#状态pro": "#状态Pro", "#星铁帮助": "#帮助", "#绝区零帮助": "#帮助", "#星铁help": "#帮助", "#绝区零help": "#帮助" },
     commands: {
       "#状态": status,
       "#状态Pro": proStatus,
@@ -259,15 +259,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
-      "#帮助": () => [
-        "Lotus-Yunzai 系统指令",
-        "#状态 查看宿主运行状态",
-        "#状态Pro 主人私聊或授权终端查看详细状态",
-        "#监控 查看 CPU、RAM、网络与磁盘趋势",
-        "#统计 查看消息收发量",
-        "#帮助 查看系统指令",
-        "#版本 查看宿主和内置模块版本",
-      ].join("\n"),
+      "#帮助": () => "https://www.lotusshared.cn/yunzai/",
       "#诊断": (args = "", context?: DiagnosticsContext) => {
         const summary = diagnostics();
         return args.trim() && context?.isMaster !== true ? summary : withRuntime(summary, context);
