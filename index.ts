@@ -39,6 +39,7 @@ interface DiagnosticsContext extends StatisticsContext {
   readonly runtimeDiagnosticsScope?: "milky";
   readonly isDelegated?: boolean;
   readonly privateCredentialSignal?: AbortSignal;
+  readonly inlineImageByteLimit?: number;
 }
 
 interface OriginalPhotoContext extends DiagnosticsContext {
@@ -117,7 +118,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   }
 
   let rendering = false;
-  async function statusCard(context: DiagnosticsContext, pro: boolean, fallback: () => string) {
+  async function statusCard(context: DiagnosticsContext, pro: boolean, fallback: () => string, config?: Record<string, unknown>) {
     const { message_type, isMaster, self_id, user_id, runtimeDiagnosticsScope } = context;
     const ownerTerminal = message_type === "terminal" && isMaster === true;
     const ownerPrivate = message_type === "private" &&
@@ -127,25 +128,21 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (pro && !ownerTerminal && !ownerPrivate) {
       return "状态 Pro 仅供当前机器人的主人私聊或授权终端查看。";
     }
-    let snapshot: RuntimeStatusSnapshot | undefined;
-    let theme: Awaited<ReturnType<typeof loadStatusCardTheme>>;
-    try {
-      if (!pro) {
-        theme = await loadStatusCardTheme();
-        if (!theme) return fallback();
-      }
-      snapshot = await runtimeStatus?.(context, pro);
-    } catch {
-      return pro ? "当前会话无法读取状态 Pro。" : fallback();
-    }
-    if (!snapshot) return pro ? "当前会话无法读取状态 Pro。" : fallback();
+    if (context.privateCredentialSignal?.aborted || signal?.aborted || context.isDelegated) return;
     if (rendering) return fallback();
     rendering = true;
     try {
-      if (pro) theme = await loadStatusCardTheme();
+      const theme = await loadStatusCardTheme();
+      if (!theme && !pro) return fallback();
+      const snapshot = await Promise.resolve().then(() => runtimeStatus?.(context, pro)).catch(() => undefined);
+      if (!snapshot) return pro ? "当前会话无法读取状态 Pro。" : fallback();
       if (!theme) return fallback();
-      const model = await collectStatusCard(snapshot, pro);
-      const result = await renderStatusCard(model, theme);
+      if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
+      const history = pro ? await (await monitor)?.snapshot() : undefined;
+      const model = await collectStatusCard(snapshot, pro, config, history?.samples);
+      if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
+      const result = await renderStatusCard(model, theme, context.inlineImageByteLimit);
+      if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
       const message = { type: "image" as const, file: result.png };
       if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;
@@ -171,16 +168,16 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return runtimeStatus && context ? statusCard(context, false, fallback) : fallback();
   }
 
-  function renderProStatus(context?: DiagnosticsContext) {
+  function renderProStatus(config: Record<string, unknown>, context?: DiagnosticsContext) {
     if (!context) return "当前会话无法读取状态 Pro。";
-    return statusCard(context, true, () => withRuntime(diagnostics(), context));
+    return statusCard(context, true, () => withRuntime(diagnostics(), context), config);
   }
 
   async function proStatus(args = "", context?: DiagnosticsContext) {
     const config = await readStatusConfig();
     if (!config || config.noPro === true) return;
     if (args.trim()) return "用法：#状态Pro。";
-    return renderProStatus(context);
+    return renderProStatus(config, context);
   }
 
   async function statusMonitor(args = "", context?: DiagnosticsContext) {
@@ -242,7 +239,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       if (config?.defaultState !== true) return;
       if (input === "状态") return status("", context);
       if (config.noPro === true) return;
-      return renderProStatus(context);
+      return renderProStatus(config, context);
     }
     return originalPhoto(input, context);
   }

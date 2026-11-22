@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { arch, cpus, freemem, platform, totalmem, uptime } from "node:os";
 import { setTimeout } from "node:timers/promises";
+import { collectStatusDetails, type StatusDetailSection } from "./status-card-details.ts";
+import type { StatusMonitorSample } from "./status-monitor.ts";
 
 export interface RuntimeStatusAccount {
   readonly name: string;
@@ -18,6 +20,20 @@ export interface RuntimeStatusSnapshot {
   readonly accounts: readonly RuntimeStatusAccount[];
   readonly pluginCount?: number;
   readonly scriptCount?: number;
+  readonly redis?: RuntimeStatusRedis;
+}
+
+export interface RuntimeStatusRedis {
+  readonly version?: string;
+  readonly uptime?: number;
+  readonly usedMemory?: number;
+  readonly peakMemory?: number;
+  readonly maxMemory?: number;
+  readonly clients?: number;
+  readonly blocked?: number;
+  readonly connections?: number;
+  readonly commands?: number;
+  readonly databases: readonly { readonly index: number; readonly keys: number; readonly expires: number; readonly averageTtl: number }[];
 }
 
 export interface StatusResource {
@@ -33,6 +49,8 @@ export interface StatusCardModel extends RuntimeStatusSnapshot {
   readonly runtime: string;
   readonly uptime: number;
   readonly resources: readonly StatusResource[];
+  readonly details?: readonly StatusDetailSection[];
+  readonly networkHistory?: readonly StatusMonitorSample[];
 }
 
 const GiB = 1024 ** 3;
@@ -73,10 +91,12 @@ export async function activeMemory() {
   if (total > 0 && used >= 0 && used <= total) return used;
 }
 
-export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: boolean): Promise<StatusCardModel> {
+export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: boolean,
+  config: Record<string, unknown> = {}, samples: readonly StatusMonitorSample[] = []): Promise<StatusCardModel> {
   const cores = cpus();
   const before = cpuTimes(cores);
-  const [memory] = await Promise.all([memoryInfo(), setTimeout(120)]);
+  const [memory, detailed] = await Promise.all([memoryInfo(), pro
+    ? collectStatusDetails(config, snapshot.redis).catch(() => undefined) : undefined, setTimeout(120)]);
   const load = cpuPercent(before, cpuTimes());
   const total = totalmem();
   const usedWithCache = total - freemem();
@@ -103,5 +123,15 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
       resources.push({ title: "Bun", percent: rss / total * 100, detail: gib(rss), info: ["进程常驻内存"] });
     }
   }
-  return { ...snapshot, platform: platform(), runtime: `${arch()} · Bun ${Bun.version}`, uptime: uptime(), resources };
+  if (detailed) resources.push(...detailed.gpu);
+  const selected = pro && Array.isArray(config.systemResources)
+    ? config.systemResources.flatMap(title => resources.filter(resource => resource.title === (title === "Node" ? "Bun" : title)))
+    : resources;
+  const { redis: _redis, ...session } = snapshot;
+  const charts: unknown = config.chartsCfg;
+  const networkHistory = pro && config.closedChart !== true &&
+    (charts === null || typeof charts !== "object" || !("show" in charts) || charts.show === true || charts.show === "pro") &&
+    samples.filter(sample => sample.network).length > 1 ? samples.slice(-60) : undefined;
+  return { ...session, platform: platform(), runtime: `${arch()} · Bun ${Bun.version}`, uptime: uptime(), resources: [...new Set(selected)],
+    ...(detailed?.sections.length && { details: detailed.sections }), ...(networkHistory && { networkHistory }) };
 }

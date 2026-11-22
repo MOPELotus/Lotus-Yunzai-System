@@ -1,11 +1,13 @@
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderPng } from "@lotus-yunzai/skia";
+import { nativeImageRasterScale, renderPng } from "@lotus-yunzai/skia";
 import { Canvas, type CanvasRenderingContext2D as Context, type Image } from "skia-canvas";
 import { loadCardFont, loadCardImage } from "./local-card-assets.ts";
 import { loadStatusBackground, readStatusBackground, type StatusPhoto } from "./status-background.ts";
 import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./status-card-data.ts";
+import type { StatusDetailSection } from "./status-card-details.ts";
+import type { StatusMonitorSample } from "./status-monitor.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
 const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
@@ -17,7 +19,7 @@ const colors = ["#84A0DF", "#2EC272", "#8070F9"];
 const contacts = ["#F1EDFE", "#FDF1E6", "#E9F4FC"];
 const icons = [
   "11", "机器人", "platform", "时间", "friend", "group", "groupMember", "sent", "recv", "screenshot",
-  "系统", "主机名", "time", "插件", "资源",
+  "系统", "主机名", "time", "插件", "资源", "磁盘", "网络", "redis", "进程负载",
 ] as const;
 type Icon = typeof icons[number];
 interface Theme {
@@ -206,7 +208,7 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
     ctx.fillRect(x - 37, avatarY + offset - 37, 74, 74);
   }
   ctx.save();
-  rounded(ctx, 52, avatarY - 4, 108, 108, 26);
+  circle(ctx, 106, avatarY + 50, 54);
   ctx.shadowOffsetX = -2 * effectScale;
   ctx.shadowOffsetY = 2 * effectScale;
   ctx.shadowBlur = 8 * effectScale;
@@ -215,7 +217,7 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   ctx.fill();
   ctx.restore();
   ctx.save();
-  rounded(ctx, 56, avatarY, 100, 100, 25);
+  circle(ctx, 106, avatarY + 50, 50);
   ctx.shadowOffsetX = -2 * effectScale;
   ctx.shadowOffsetY = 2 * effectScale;
   ctx.shadowBlur = 12 * effectScale;
@@ -240,9 +242,9 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   }
   ctx.restore();
   if (theme.online) {
-    ctx.drawImage(theme.online, 146, avatarY + 86, 20, 20);
+    ctx.drawImage(theme.online, 132, avatarY + 76, 20, 20);
   } else {
-    circle(ctx, 156, avatarY + 96, 8);
+    circle(ctx, 142, avatarY + 86, 8);
     ctx.fillStyle = "#49d79c";
     ctx.fill();
     ctx.strokeStyle = "#fff";
@@ -346,19 +348,121 @@ function drawResource(ctx: Context, theme: Theme, resource: StatusResource, inde
   ctx.restore();
 }
 
-export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
+function sectionHeader(ctx: Context, theme: Theme, height: number, y: number, panelHeight: number, symbol: Icon, title: string) {
+  glass(ctx, theme, height, 25, y, 700, panelHeight);
+  icon(ctx, theme, symbol, 46, y + 16, 20);
+  font(ctx, theme, 18, 700);
+  ctx.fillStyle = "#000";
+  text(ctx, title, 73, y + 33, undefined, true);
+  ctx.strokeStyle = "#707070da";
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(36, y + 51);
+  ctx.lineTo(714, y + 51);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+const detailHeight = (section: StatusDetailSection) => 72 + section.rows.length * 26;
+
+function drawDetails(ctx: Context, theme: Theme, height: number, section: StatusDetailSection, y: number) {
+  sectionHeader(ctx, theme, height, y, detailHeight(section), section.icon, section.title);
+  for (const [index, [label, value]] of section.rows.entries()) {
+    const baseline = y + 75 + index * 26;
+    font(ctx, theme, 14, 700);
+    ctx.fillStyle = "#34343d";
+    text(ctx, label, 49, baseline, 165);
+    font(ctx, theme, 14);
+    ctx.fillStyle = "#272a39";
+    text(ctx, value, 231, baseline, 465);
+  }
+}
+
+const historyHeight = 222;
+const historyTime = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZone: "Asia/Shanghai" });
+
+function drawNetworkHistory(ctx: Context, theme: Theme, height: number, history: readonly StatusMonitorSample[], y: number) {
+  sectionHeader(ctx, theme, height, y, historyHeight, "网络", "网络流量");
+  const readings = history.filter(sample => sample.network !== undefined);
+  const first = readings[0]!.at;
+  const last = readings.at(-1)!.at;
+  const maximum = Math.max(1, ...readings.flatMap(sample => sample.network!));
+  const top = y + 75;
+  const bottom = y + 176;
+  const left = 119;
+  const right = 690;
+  font(ctx, theme, 12);
+  ctx.fillStyle = "#34343d";
+  ctx.textAlign = "right";
+  ctx.strokeStyle = "#59596880";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    const row = top + (bottom - top) * i / 2;
+    ctx.beginPath();
+    ctx.moveTo(left, row);
+    ctx.lineTo(right, row);
+    ctx.stroke();
+    text(ctx, `${(maximum * (1 - i / 2) / 1024).toFixed(1)} KiB/s`, left - 8, row + 4, 66);
+  }
+  ctx.textAlign = "left";
+  text(ctx, historyTime.format(first), left, bottom + 20);
+  ctx.textAlign = "right";
+  text(ctx, historyTime.format(last), right, bottom + 20);
+  ctx.textAlign = "left";
+  for (const [index, color] of ["#177873", "#6a4d9e"].entries()) {
+    ctx.fillStyle = color;
+    text(ctx, index === 0 ? "上传" : "下载", 588 + index * 56, y + 34);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let connected = false;
+    for (const sample of history) {
+      if (!sample.network) {
+        connected = false;
+        continue;
+      }
+      const x = left + (sample.at - first) / Math.max(1, last - first) * (right - left);
+      const point = bottom - sample.network[index]! / maximum * (bottom - top);
+      if (connected) ctx.lineTo(x, point);
+      else ctx.moveTo(x, point);
+      connected = true;
+    }
+    ctx.stroke();
+  }
+}
+
+function safeHistory(networkHistory: StatusCardModel["networkHistory"]) {
+  return networkHistory?.map(sample => {
+    if (!Number.isFinite(sample.at)) return;
+    const network = sample.network;
+    if (Array.isArray(network) && network.length === 2 && network.every(value => Number.isFinite(value) && value >= 0)) return sample;
+    return { at: sample.at };
+  }).filter(sample => sample !== undefined);
+}
+
+export async function renderStatusCard(model: StatusCardModel, theme: Theme, inlineImageByteLimit?: number) {
   const meter = new Canvas(1, 1).getContext("2d");
   meter.fontSynthesis = false;
   const layouts = model.accounts.map(account => badgeRows(meter, theme, account));
-  const resources = model.resources.filter(resource => Number.isFinite(resource.percent)).slice(0, 4);
-  const resourceHeight = resources.length ? 234 + 22 * Math.max(0, ...resources.map(row => row.info?.length ?? 0)) : 0;
+  const resources = model.resources.filter(resource => Number.isFinite(resource.percent));
+  const resourceRows: { items: StatusResource[]; height: number }[] = [];
+  for (let index = 0; index < resources.length; index += 4) {
+    const items = resources.slice(index, index + 4);
+    resourceRows.push({ items, height: 192 + 22 * Math.max(0, ...items.map(row => row.info?.length ?? 0)) });
+  }
+  const resourceHeight = resourceRows.length ? 42 + resourceRows.reduce((sum, row) => sum + row.height, 0) : 0;
+  const details = model.details ?? [];
   const systemY = 40 + layouts.reduce((sum, box) => sum + box.height + 20, 0);
   const resourceY = systemY + 137;
-  const footerY = resourceY + resourceHeight + (resources.length ? 20 : 0);
+  const detailsY = resourceY + resourceHeight + (resources.length ? 20 : 0);
+  const historyY = detailsY + details.reduce((sum, section) => sum + detailHeight(section) + 20, 0);
+  const networkHistory = safeHistory(model.networkHistory);
+  const showHistory = networkHistory && networkHistory.filter(row => row.network).length > 1;
+  const footerY = historyY + (showHistory ? historyHeight + 20 : 0);
   const height = footerY + 60;
-  return renderPng(Math.ceil(logicalWidth * scale), Math.ceil(height * scale), ctx => {
+  function draw(ctx: Context) {
     ctx.fontSynthesis = false;
-    ctx.scale(scale, scale);
     ctx.fillStyle = "#e9e9e9";
     ctx.fillRect(0, 0, logicalWidth, height);
     background(ctx, theme, height);
@@ -370,23 +474,21 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
     }
     drawSystem(ctx, theme, height, model, y);
     if (resources.length) {
-      glass(ctx, theme, height, 25, resourceY, 700, resourceHeight);
-      icon(ctx, theme, "资源", 46, resourceY + 16, 20);
-      font(ctx, theme, 18, 700);
-      ctx.fillStyle = "#000";
-      text(ctx, "资源使用", 73, resourceY + 33, undefined, true);
-      ctx.strokeStyle = "#707070da";
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(36, resourceY + 51);
-      ctx.lineTo(714, resourceY + 51);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      for (const [index, resource] of resources.entries()) {
-        drawResource(ctx, theme, resource, index, 36 + 678 * (index + 0.5) / resources.length, resourceY + 62);
+      sectionHeader(ctx, theme, height, resourceY, resourceHeight, "资源", "资源使用");
+      let rowY = resourceY + 62;
+      for (const [row, { items, height }] of resourceRows.entries()) {
+        for (const [column, resource] of items.entries()) {
+          drawResource(ctx, theme, resource, row * 4 + column, 36 + 678 * (column + 0.5) / items.length, rowY);
+        }
+        rowY += height;
       }
     }
+    y = detailsY;
+    for (const section of details) {
+      drawDetails(ctx, theme, height, section, y);
+      y += detailHeight(section) + 20;
+    }
+    if (showHistory) drawNetworkHistory(ctx, theme, height, networkHistory, historyY);
 
     ctx.textAlign = "center";
     font(ctx, theme, 14);
@@ -401,5 +503,16 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme) {
     text(ctx, "Bun", 375 - runtimeWidth / 2, footerY + 38);
     ctx.fillStyle = "#d3bc8e";
     text(ctx, Bun.version, 375 - runtimeWidth / 2 + ctx.measureText("Bun ").width, footerY + 38);
-  }, "gpu");
+  }
+  const render = (factor: number) => renderPng(Math.ceil(logicalWidth * factor), Math.ceil(height * factor), ctx => {
+    ctx.scale(factor, factor);
+    draw(ctx);
+  }, "gpu", { allowHalfScale: factor === 4 });
+  const full = await render(scale);
+  if (inlineImageByteLimit === undefined || full.png.byteLength <= inlineImageByteLimit) return full;
+  if (nativeImageRasterScale() === 4 && !full.reducedScaleReason) {
+    const reduced = await render(2);
+    if (reduced.png.byteLength <= inlineImageByteLimit) return reduced;
+  }
+  throw new RangeError("状态图超过当前会话图片大小上限。");
 }
