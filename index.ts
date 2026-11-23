@@ -7,6 +7,9 @@ import { renderStatusMonitor, statusMonitorText } from "./status-monitor-rendere
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
 
+const helpUrl = "https://www.lotusshared.cn/yunzai/";
+const helpAlias = /^(?:#(?:原神|星铁|绝区零)?|\/)?(?:命令|帮助|菜单|help|说明|功能|指令|使用说明)$/u;
+
 export type { RuntimeStatusAccount, RuntimeStatusSnapshot } from "./status-card-data.ts";
 export type { StatusPhotoStorage } from "./status-photo-ledger.ts";
 export type { StatusMonitorStorage } from "./status-monitor.ts";
@@ -238,8 +241,9 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     }
   }
 
-  async function fallback(message: string, context: OriginalPhotoContext) {
+  async function fallback(message: string, context: OriginalPhotoContext & { readonly normalizedMessage?: string }) {
     const input = message.trim();
+    if (helpAlias.test((context.normalizedMessage ?? input).trim())) return helpUrl;
     if (/^状态(?:[Pp]ro)?$/u.test(input)) {
       const config = await readStatusConfig();
       if (config?.defaultState !== true) return;
@@ -253,7 +257,8 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
   return {
     dispose: async () => (await monitor)?.dispose(),
     fallback,
-    fallbackFeatures: () => ["[system] 状态"],
+    fallbackFeatures: ({ normalizedMessage }: { readonly normalizedMessage: string }) =>
+      helpAlias.test(normalizedMessage.trim()) ? [] : ["[system] 状态"],
     aliases: {
       "#状态pro": "#状态Pro",
       "#help": "#帮助",
@@ -270,7 +275,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
-      "#帮助": () => "https://www.lotusshared.cn/yunzai/",
+      "#帮助": () => helpUrl,
       "#诊断": (args = "", context?: DiagnosticsContext) => {
         const summary = diagnostics();
         return args.trim() && context?.isMaster !== true ? summary : withRuntime(summary, context);
