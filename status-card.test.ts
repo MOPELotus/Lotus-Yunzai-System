@@ -41,6 +41,7 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
       "#星铁help": "#帮助",
       "#绝区零帮助": "#帮助",
       "#绝区零help": "#帮助",
+      "#自动签到帮助": "#帮助",
     });
     expect(commands["#帮助"]()).toBe("https://www.lotusshared.cn/yunzai/");
     expect(await commands["#状态Pro"]("多余参数", owner)).toBe("用法：#状态Pro。");
