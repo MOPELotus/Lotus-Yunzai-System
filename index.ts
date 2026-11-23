@@ -261,6 +261,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#星铁help": "#帮助",
       "#绝区零帮助": "#帮助",
       "#绝区零help": "#帮助",
+      "#自动签到帮助": "#帮助",
     },
     commands: {
       "#状态": status,
