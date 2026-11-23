@@ -7,9 +7,9 @@ import { statusSettingsRecord } from "./status-card-style.ts";
 import { renderStatusMonitor, statusMonitorText } from "./status-monitor-renderer.ts";
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
+import { isSystemHelpAlias } from "./help-command.ts";
 
 const helpUrl = "https://www.lotusshared.cn/yunzai/";
-const helpAlias = /^(?:#(?:原神|星铁|绝区零)?|\/)?(?:命令|帮助|菜单|help|说明|功能|指令|使用说明)$/u;
 
 export type { RuntimeStatusAccount, RuntimeStatusSnapshot } from "./status-card-data.ts";
 export type { StatusPhotoStorage } from "./status-photo-ledger.ts";
@@ -246,7 +246,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   async function fallback(message: string, context: OriginalPhotoContext & { readonly normalizedMessage?: string }) {
     const input = message.trim();
-    if (helpAlias.test((context.normalizedMessage ?? input).trim())) return helpUrl;
+    if (isSystemHelpAlias(context.normalizedMessage ?? input)) return helpUrl;
     if (/^状态(?:[Pp]ro)?$/u.test(input)) {
       const config = await readStatusConfig();
       if (config?.defaultState !== true) return;
@@ -261,7 +261,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     dispose: async () => (await monitor)?.dispose(),
     fallback,
     fallbackFeatures: ({ normalizedMessage }: { readonly normalizedMessage: string }) =>
-      helpAlias.test(normalizedMessage.trim()) ? [] : ["[system] 状态"],
+      isSystemHelpAlias(normalizedMessage) ? [] : ["[system] 状态"],
     aliases: {
       "#状态pro": "#状态Pro",
       "#help": "#帮助",
