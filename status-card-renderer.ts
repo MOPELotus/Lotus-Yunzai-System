@@ -4,9 +4,10 @@ import { fileURLToPath } from "node:url";
 import { nativeImageRasterScale, renderPng } from "@lotus-yunzai/skia";
 import { Canvas, type CanvasRenderingContext2D as Context, type Image } from "skia-canvas";
 import { loadCardFont, loadCardImage } from "./local-card-assets.ts";
-import { loadStatusBackground, readStatusBackground, type StatusPhoto } from "./status-background.ts";
+import { loadStatusBackground, readStatusConfig, statusBackdrop, type StatusPhoto } from "./status-background.ts";
 import type { RuntimeStatusAccount, StatusCardModel, StatusResource } from "./status-card-data.ts";
 import type { StatusDetailSection } from "./status-card-details.ts";
+import { statusCardStyle } from "./status-card-style.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
 const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
@@ -14,8 +15,6 @@ const logicalWidth = 750;
 const scale = 4;
 // Skia filters and shadow distances use device pixels. Keep their former logical sizes.
 const effectScale = scale / 1.4;
-const colors = ["#84A0DF", "#2EC272", "#8070F9"];
-const contacts = ["#F1EDFE", "#FDF1E6", "#E9F4FC"];
 const icons = [
   "11", "机器人", "platform", "时间", "friend", "group", "groupMember", "sent", "recv", "screenshot",
   "系统", "主机名", "time", "插件", "资源", "磁盘", "网络", "redis", "进程负载",
@@ -28,16 +27,18 @@ interface Theme {
   readonly online?: Image;
   readonly icons: ReadonlyMap<Icon, Image>;
   readonly font: string;
+  readonly style: ReturnType<typeof statusCardStyle>;
 }
 
 export function statusCardThemeDirectory() {
   return process.env.LOTUS_SYSTEM_STATUS_THEME_DIR || defaultDirectory;
 }
 
-export async function loadStatusCardTheme(directory = statusCardThemeDirectory()): Promise<Theme | undefined> {
+export async function loadStatusCardTheme(directory = statusCardThemeDirectory(), config?: Record<string, unknown>): Promise<Theme | undefined> {
   const root = await realpath(directory).catch(() => undefined);
   if (!root) return;
-  const choice = await readStatusBackground();
+  config ??= await readStatusConfig();
+  const choice = statusBackdrop(config);
   if (!choice) return;
   for (const theme of [root, join(root, "resources")]) {
     const background = await loadStatusBackground(theme, choice);
@@ -49,7 +50,7 @@ export async function loadStatusCardTheme(directory = statusCardThemeDirectory()
         await loadCardImage(theme, `state/icon/${icon}.png`).catch(() => undefined)] as const)),
     ]);
     const family = font ? `"${font}", "Noto Sans CJK SC", sans-serif` : '"PingFang SC", "Noto Sans CJK SC", sans-serif';
-    return { background: background.image, photo: background.photo, avatar, font: family,
+    return { background: background.image, photo: background.photo, avatar, font: family, style: statusCardStyle(config),
       online: entries.find(([name]) => name === "11")?.[1],
       icons: new Map(entries.filter((entry): entry is readonly [Icon, Image] => entry[1] !== undefined)) };
   }
@@ -95,14 +96,16 @@ function rounded(ctx: Context, x: number, y: number, width: number, height: numb
   ctx.roundRect(x, y, width, height, radius);
 }
 
-function background(ctx: Context, theme: Pick<Theme, "background">, height: number, pageWidth = logicalWidth) {
+function background(ctx: Context, theme: Pick<Theme, "background">, height: number, pageWidth = logicalWidth, offset = 0) {
   const ratio = Math.max(pageWidth / theme.background.width, height / theme.background.height);
   const width = theme.background.width * ratio;
-  ctx.drawImage(theme.background, (pageWidth - width) / 2, 0, width, theme.background.height * ratio);
+  ctx.drawImage(theme.background, (pageWidth - width) / 2 - offset, 0, width, theme.background.height * ratio);
 }
 
-function glass(ctx: Context, theme: Pick<Theme, "background">, height: number,
-  x: number, y: number, width: number, boxHeight: number, pageWidth = logicalWidth) {
+type DrawTheme = Theme & { readonly columnWidth: number; readonly pageWidth: number; readonly left: number };
+
+function glass(ctx: Context, theme: DrawTheme, height: number,
+  x: number, y: number, width: number, boxHeight: number) {
   ctx.save();
   rounded(ctx, x, y, width, boxHeight, 18);
   ctx.shadowOffsetY = 8 * effectScale;
@@ -116,7 +119,7 @@ function glass(ctx: Context, theme: Pick<Theme, "background">, height: number,
   rounded(ctx, x, y, width, boxHeight, 18);
   ctx.clip();
   ctx.filter = `blur(${14 * effectScale}px)`;
-  background(ctx, theme, height, pageWidth);
+  background(ctx, theme, height, theme.pageWidth, theme.left);
   ctx.filter = "none";
   ctx.fillStyle = "rgba(255,255,255,0.45)";
   ctx.fillRect(x, y, width, boxHeight);
@@ -139,10 +142,11 @@ interface Badge {
   readonly color: string;
 }
 function badgeRows(ctx: Context, theme: Theme, account: RuntimeStatusAccount) {
+  const { botVersionColor, botPlatformColor, botUptimeColor, contactColors } = theme.style;
   const version: Badge[] = [
-    { label: "Lotus-Yunzai", icon: "机器人", color: "#FBE0F3" },
-    { label: account.adapter === "milky" ? "Milky v1" : "OneBot v11", icon: "platform", color: "#F0EDF2" },
-    { label: `Bot已运行 ${duration(account.seconds)}`, icon: "时间", color: "#F1EBFA" },
+    { label: "Lotus-Yunzai", icon: "机器人", color: botVersionColor },
+    { label: account.adapter === "milky" ? "Milky v1" : "OneBot v11", icon: "platform", color: botPlatformColor },
+    { label: `Bot已运行 ${duration(account.seconds)}`, icon: "时间", color: botUptimeColor },
   ];
   const contact: Badge[] = [];
   const stats = [
@@ -151,7 +155,7 @@ function badgeRows(ctx: Context, theme: Theme, account: RuntimeStatusAccount) {
   ] as const;
   for (const [value, suffix, name] of stats) {
     if (value === undefined || value === 0 || value === "0") continue;
-    contact.push({ label: String(value), suffix, icon: name, color: contacts[contact.length % contacts.length]! });
+    contact.push({ label: String(value), suffix, icon: name, color: contactColors[contact.length % contactColors.length]! });
   }
 
   const rows: { x: number; y: number; width: number; badge: Badge }[] = [];
@@ -194,9 +198,9 @@ function drawBadge(ctx: Context, theme: Theme, badge: Badge, x: number, y: numbe
   }
 }
 
-function drawAccount(ctx: Context, theme: Theme, height: number, account: RuntimeStatusAccount,
+function drawAccount(ctx: Context, theme: DrawTheme, height: number, account: RuntimeStatusAccount,
   layout: ReturnType<typeof badgeRows>, y: number) {
-  glass(ctx, theme, height, 25, y, 700, layout.height);
+  glass(ctx, theme, height, 25, y, theme.columnWidth - 50, layout.height);
   const avatarY = y + (layout.height - 100) / 2;
   for (const [x, offset, tint] of [[56, 5, "102,190,240"], [150, 5, "255,100,100"],
     [105, 0, "255,200,135"], [108, 95, "147,112,190"]] as const) {
@@ -252,19 +256,30 @@ function drawAccount(ctx: Context, theme: Theme, height: number, account: Runtim
   }
 
   font(ctx, theme, 28, 700);
-  ctx.fillStyle = "#000";
+  const { nameColor, nameGradient } = theme.style;
+  ctx.fillStyle = nameColor;
+  if (nameGradient) {
+    const radians = nameGradient.angle * Math.PI / 180;
+    const width = Math.min(380, Math.max(1, ctx.measureText(account.name).width));
+    const halfX = Math.sin(radians) * width / 2;
+    const halfY = -Math.cos(radians) * 14;
+    const gradient = ctx.createLinearGradient(186 + width / 2 - halfX, y + 39 - halfY,
+      186 + width / 2 + halfX, y + 39 + halfY);
+    for (const stop of nameGradient.stops) gradient.addColorStop(stop.position, stop.color);
+    ctx.fillStyle = gradient;
+  }
   text(ctx, account.name, 186, y + 52, 380, true);
   ctx.strokeStyle = "#c0bfc1";
   ctx.setLineDash([4, 3]);
   ctx.beginPath();
   ctx.moveTo(186, y + 65);
-  ctx.lineTo(695, y + 65);
+  ctx.lineTo(theme.columnWidth - 55, y + 65);
   ctx.stroke();
   ctx.setLineDash([]);
   for (const row of layout.rows) drawBadge(ctx, theme, row.badge, 186 + row.x, y + 75 + row.y, row.width);
 }
 
-function drawSystem(ctx: Context, theme: Theme, height: number, model: StatusCardModel, y: number) {
+function drawSystem(ctx: Context, theme: DrawTheme, height: number, model: StatusCardModel, y: number) {
   const items = [
     ["系统", "系统", model.platform, model.runtime],
     ["主机名", "主机名", "隐藏", undefined],
@@ -273,8 +288,9 @@ function drawSystem(ctx: Context, theme: Theme, height: number, model: StatusCar
       model.scriptCount === undefined ? undefined : `${model.scriptCount} js`],
   ] as const;
   for (const [index, [label, symbol, value, secondary]] of items.entries()) {
-    const x = 25 + index * 177.5;
-    glass(ctx, theme, height, x, y, 167.5, 117);
+    const step = (theme.columnWidth - 40) / 4;
+    const x = 25 + index * step;
+    glass(ctx, theme, height, x, y, step - 10, 117);
     icon(ctx, theme, symbol, x + 21, y + 22, 16);
     font(ctx, theme, 14);
     ctx.fillStyle = "#404040";
@@ -306,6 +322,11 @@ function arc(ctx: Context, x: number, y: number, percent: number, color: string)
   ctx.stroke();
 }
 
+function progressColor(theme: Theme, percent: number, index: number) {
+  const { progressHigh, progressMedium, progressLow } = theme.style;
+  return percent >= 90 ? progressHigh : percent >= 80 ? progressMedium : progressLow[index % progressLow.length]!;
+}
+
 function drawResource(ctx: Context, theme: Theme, resource: StatusResource, index: number, x: number, y: number) {
   const percent = Math.min(100, Math.max(0, resource.percent));
   const cy = y + 55;
@@ -329,7 +350,7 @@ function drawResource(ctx: Context, theme: Theme, resource: StatusResource, inde
   ctx.fill();
   ctx.shadowColor = "transparent";
   if (resource.bufferPercent !== undefined) arc(ctx, x, cy, resource.bufferPercent, "#bcbbbbb0");
-  arc(ctx, x, cy, percent, percent >= 90 ? "#d73403" : percent >= 80 ? "#ffa500" : colors[index % colors.length]!);
+  arc(ctx, x, cy, percent, progressColor(theme, percent, index));
   ctx.textAlign = "center";
   font(ctx, theme, 20, 700);
   ctx.fillStyle = "#514f4f";
@@ -347,8 +368,8 @@ function drawResource(ctx: Context, theme: Theme, resource: StatusResource, inde
   ctx.restore();
 }
 
-function sectionHeader(ctx: Context, theme: Theme, height: number, y: number, panelHeight: number, symbol: Icon, title: string) {
-  glass(ctx, theme, height, 25, y, 700, panelHeight);
+function sectionHeader(ctx: Context, theme: DrawTheme, height: number, y: number, panelHeight: number, symbol: Icon, title: string) {
+  glass(ctx, theme, height, 25, y, theme.columnWidth - 50, panelHeight);
   icon(ctx, theme, symbol, 46, y + 16, 20);
   font(ctx, theme, 18, 700);
   ctx.fillStyle = "#000";
@@ -358,23 +379,35 @@ function sectionHeader(ctx: Context, theme: Theme, height: number, y: number, pa
   ctx.setLineDash([6, 4]);
   ctx.beginPath();
   ctx.moveTo(36, y + 51);
-  ctx.lineTo(714, y + 51);
+  ctx.lineTo(theme.columnWidth - 36, y + 51);
   ctx.stroke();
   ctx.setLineDash([]);
 }
 
-const detailHeight = (section: StatusDetailSection) => 72 + section.rows.length * 26;
+const detailHeight = (section: StatusDetailSection) => 72 + section.rows.reduce((height, row) =>
+  height + (row[2] === undefined ? 26 : 40), 0);
 
-function drawDetails(ctx: Context, theme: Theme, height: number, section: StatusDetailSection, y: number) {
+function drawDetails(ctx: Context, theme: DrawTheme, height: number, section: StatusDetailSection, y: number) {
   sectionHeader(ctx, theme, height, y, detailHeight(section), section.icon, section.title);
-  for (const [index, [label, value]] of section.rows.entries()) {
-    const baseline = y + 75 + index * 26;
+  let baseline = y + 75;
+  for (const [index, [label, value, percent]] of section.rows.entries()) {
     font(ctx, theme, 14, 700);
     ctx.fillStyle = "#34343d";
     text(ctx, label, 49, baseline, 165);
     font(ctx, theme, 14);
-    ctx.fillStyle = "#272a39";
-    text(ctx, value, 231, baseline, 465);
+    ctx.fillStyle = section.icon === "redis" ? theme.style.redisValueColor : "#272a39";
+    text(ctx, value, 231, baseline, theme.columnWidth - 285);
+    if (percent !== undefined) {
+      const width = theme.columnWidth - 278;
+      rounded(ctx, 231, baseline + 9, width, 5, 2.5);
+      ctx.fillStyle = "#b2b4bf70";
+      ctx.fill();
+      rounded(ctx, 231, baseline + 9, width * Math.max(0, Math.min(1, percent / 100)), 5, 2.5);
+      ctx.fillStyle = progressColor(theme, percent, index);
+      ctx.fill();
+      baseline += 14;
+    }
+    baseline += 26;
   }
 }
 
@@ -389,7 +422,7 @@ interface StatusChart {
   readonly history: readonly { readonly at: number; readonly values?: readonly number[] }[];
 }
 
-function drawHistory(ctx: Context, theme: Theme, height: number, chart: StatusChart, y: number) {
+function drawHistory(ctx: Context, theme: DrawTheme, height: number, chart: StatusChart, y: number) {
   sectionHeader(ctx, theme, height, y, historyHeight, chart.icon, chart.title);
   const readings = chart.history.filter(sample => sample.values !== undefined);
   const first = readings[0]!.at;
@@ -398,7 +431,7 @@ function drawHistory(ctx: Context, theme: Theme, height: number, chart: StatusCh
   const top = y + 75;
   const bottom = y + 176;
   const left = 119;
-  const right = 690;
+  const right = theme.columnWidth - 60;
   font(ctx, theme, 12);
   ctx.fillStyle = "#34343d";
   ctx.textAlign = "right";
@@ -419,7 +452,7 @@ function drawHistory(ctx: Context, theme: Theme, height: number, chart: StatusCh
   ctx.textAlign = "left";
   for (const [index, { label, color }] of chart.series.entries()) {
     ctx.fillStyle = color;
-    text(ctx, label, 588 + index * 56, y + 34);
+    text(ctx, label, theme.columnWidth - 162 + index * 56, y + 34);
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
     ctx.beginPath();
@@ -439,15 +472,16 @@ function drawHistory(ctx: Context, theme: Theme, height: number, chart: StatusCh
   }
 }
 
-function historyChart(model: StatusCardModel): StatusChart[] {
+function historyChart(model: StatusCardModel, theme: Theme): StatusChart[] {
   const candidates: StatusChart[] = [];
   const network = model.networkHistory?.filter(row => Number.isSafeInteger(row.at)).map(({ at, network }) => ({
     at, values: Array.isArray(network) && network.length === 2 && network.every(value => Number.isFinite(value) && value >= 0)
       ? network : undefined,
   }));
+  const palette = theme.style.chartColors;
   if (network) candidates.push({
     title: "网络流量", icon: "网络", axes: value => (value / 1024).toFixed(1) + " KiB/s",
-    series: [{ label: "上传", color: "#177873" }, { label: "下载", color: "#6a4d9e" }], history: network,
+    series: [{ label: "上传", color: palette[0]! }, { label: "下载", color: palette[1 % palette.length]! }], history: network,
   });
   const redis = model.redisHistory?.filter(row => Number.isSafeInteger(row.at)).map(({ at, redisClients }) => ({
     at, values: redisClients !== undefined && Number.isSafeInteger(redisClients) && redisClients >= 0 ? [redisClients] : undefined,
@@ -458,54 +492,93 @@ function historyChart(model: StatusCardModel): StatusChart[] {
   return candidates.filter(chart => chart.history.filter(sample => sample.values).length > 1);
 }
 
+const sectionGap = 20;
+const topMargin = 40;
+const footerHeight = 60;
+
+export function statusPanelLayout(panelHeights: readonly number[], startColumn: boolean) {
+  const heights = panelHeights.map(panel => panel + sectionGap);
+  const total = heights.reduce((a, b) => a + b, 0);
+  const fullHeight = topMargin + total + footerHeight;
+  const targetCount = startColumn ? fullHeight > 4500 ? 4 : fullHeight > 2900 ? 3 : fullHeight > 1700 ? 2 : 1 : 1;
+  const columns = Math.min(Math.max(1, heights.length), targetCount);
+  const placements: { column: number; y: number }[] = [];
+  let column = 0;
+  let used = 0;
+  let maximum = 0;
+  let remaining = total;
+  let target = total / columns;
+  for (const [index, height] of heights.entries()) {
+    const columnsLeft = columns - column - 1;
+    const remainingItems = heights.length - index;
+    if (used > 0 && columnsLeft > 0 && (remainingItems <= columnsLeft ||
+        Math.abs(used - target) < Math.abs(used + height - target))) {
+      maximum = Math.max(maximum, used);
+      column++;
+      used = 0;
+      target = remaining / (columnsLeft);
+    }
+    placements.push({ column, y: topMargin + used });
+    used += height;
+    remaining -= height;
+  }
+  return { placements, columns: column + 1, footerY: topMargin + Math.max(maximum, used) };
+}
+
 export async function renderStatusCard(model: StatusCardModel, theme: Theme, inlineImageByteLimit?: number) {
   const meter = new Canvas(1, 1).getContext("2d");
   meter.fontSynthesis = false;
-  const layouts = model.accounts.map(account => badgeRows(meter, theme, account));
   const resources = model.resources.filter(resource => Number.isFinite(resource.percent));
+  const rowSize = resources.length === 5 ? 5 : 4;
+  const columnWidth = rowSize === 5 ? 800 : logicalWidth;
   const resourceRows: { items: StatusResource[]; height: number }[] = [];
-  for (let index = 0; index < resources.length; index += 4) {
-    const items = resources.slice(index, index + 4);
+  for (let index = 0; index < resources.length; index += rowSize) {
+    const items = resources.slice(index, index + rowSize);
     resourceRows.push({ items, height: 192 + 22 * Math.max(0, ...items.map(row => row.info?.length ?? 0)) });
   }
-  const resourceHeight = resourceRows.length ? 42 + resourceRows.reduce((sum, row) => sum + row.height, 0) : 0;
-  const details = model.details ?? [];
-  const systemY = 40 + layouts.reduce((sum, box) => sum + box.height + 20, 0);
-  const resourceY = systemY + 137;
-  const detailsY = resourceY + resourceHeight + (resources.length ? 20 : 0);
-  const historyY = detailsY + details.reduce((sum, section) => sum + detailHeight(section) + 20, 0);
-  const charts = historyChart(model);
-  const footerY = historyY + charts.length * (historyHeight + 20);
-  const height = footerY + 60;
-  function draw(ctx: Context) {
-    ctx.fontSynthesis = false;
-    ctx.fillStyle = "#e9e9e9";
-    ctx.fillRect(0, 0, logicalWidth, height);
-    background(ctx, theme, height);
-    let y = 40;
-    for (const [index, account] of model.accounts.entries()) {
-      const layout = layouts[index]!;
-      drawAccount(ctx, theme, height, account, layout, y);
-      y += layout.height + 20;
-    }
-    drawSystem(ctx, theme, height, model, y);
-    if (resources.length) {
-      sectionHeader(ctx, theme, height, resourceY, resourceHeight, "资源", "资源使用");
-      let rowY = resourceY + 62;
+  type Panel = { height: number; draw: (ctx: Context, theme: DrawTheme, height: number, y: number) => void };
+  const panels: Panel[] = model.accounts.map(account => {
+    const layout = badgeRows(meter, theme, account);
+    return { height: layout.height, draw: (ctx, layoutTheme, height, y) => drawAccount(ctx, layoutTheme, height, account, layout, y) };
+  });
+  panels.push({ height: 117, draw: (ctx, layoutTheme, height, y) => drawSystem(ctx, layoutTheme, height, model, y) });
+  if (resourceRows.length) {
+    const panelHeight = 42 + resourceRows.reduce((sum, row) => sum + row.height, 0);
+    panels.push({ height: panelHeight, draw(ctx, layoutTheme, height, y) {
+      sectionHeader(ctx, layoutTheme, height, y, panelHeight, "资源", "资源使用");
+      let rowY = y + 62;
       for (const [row, { items, height }] of resourceRows.entries()) {
         for (const [column, resource] of items.entries()) {
-          drawResource(ctx, theme, resource, row * 4 + column, 36 + 678 * (column + 0.5) / items.length, rowY);
+          const x = 36 + (columnWidth - 72) * (column + 0.5) / items.length;
+          drawResource(ctx, layoutTheme, resource, row * rowSize + column, x, rowY);
         }
         rowY += height;
       }
+    } });
+  }
+  for (const section of model.details ?? []) {
+    panels.push({ height: detailHeight(section), draw: (ctx, layoutTheme, height, y) => drawDetails(ctx, layoutTheme, height, section, y) });
+  }
+  for (const chart of historyChart(model, theme)) {
+    panels.push({ height: historyHeight, draw: (ctx, layoutTheme, height, y) => drawHistory(ctx, layoutTheme, height, chart, y) });
+  }
+  const layout = statusPanelLayout(panels.map(panel => panel.height), theme.style.startColumn);
+  const { footerY } = layout;
+  const width = columnWidth * layout.columns;
+  const height = footerY + footerHeight;
+  function draw(ctx: Context) {
+    ctx.fontSynthesis = false;
+    ctx.fillStyle = "#e9e9e9";
+    ctx.fillRect(0, 0, width, height);
+    background(ctx, theme, height, width);
+    for (const [index, panel] of panels.entries()) {
+      const { column, y } = layout.placements[index]!;
+      const left = column * columnWidth;
+      ctx.save();
+      ctx.translate(left, 0);
+      panel.draw(ctx, { ...theme, columnWidth, pageWidth: width, left }, height, y);
+      ctx.restore();
     }
-    y = detailsY;
-    for (const section of details) {
-      drawDetails(ctx, theme, height, section, y);
-      y += detailHeight(section) + 20;
-    }
-    for (const [index, chart] of charts.entries()) drawHistory(ctx, theme, height, chart, historyY + index * (historyHeight + 20));
-
     ctx.textAlign = "center";
     font(ctx, theme, 14);
     ctx.fillStyle = "#fff";
@@ -513,14 +586,15 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
     ctx.shadowOffsetY = 1 * effectScale;
     ctx.shadowBlur = 1 * effectScale;
     ctx.shadowColor = "#000";
-    text(ctx, "Created By Lotus-Yunzai", 375, footerY + 17);
+    const footerCenter = width / 2;
+    text(ctx, "Created By Lotus-Yunzai", footerCenter, footerY + 17);
     const runtimeWidth = ctx.measureText("Bun " + Bun.version).width;
     ctx.textAlign = "left";
-    text(ctx, "Bun", 375 - runtimeWidth / 2, footerY + 38);
+    text(ctx, "Bun", footerCenter - runtimeWidth / 2, footerY + 38);
     ctx.fillStyle = "#d3bc8e";
-    text(ctx, Bun.version, 375 - runtimeWidth / 2 + ctx.measureText("Bun ").width, footerY + 38);
+    text(ctx, Bun.version, footerCenter - runtimeWidth / 2 + ctx.measureText("Bun ").width, footerY + 38);
   }
-  const render = (factor: number) => renderPng(Math.ceil(logicalWidth * factor), Math.ceil(height * factor), ctx => {
+  const render = (factor: number) => renderPng(Math.ceil(width * factor), Math.ceil(height * factor), ctx => {
     ctx.scale(factor, factor);
     draw(ctx);
   }, "gpu", { allowHalfScale: factor === 4 });

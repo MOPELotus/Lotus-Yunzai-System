@@ -3,6 +3,7 @@ import { loadStatusCardTheme, renderStatusCard, statusCardThemeDirectory } from 
 import { readStatusConfig, readStatusOriginal } from "./status-background.ts";
 import { createStatusPhotoLedger, type StatusPhotoStorage } from "./status-photo-ledger.ts";
 import { createStatusMonitor, statusMonitorSettings, type StatusMonitorStorage } from "./status-monitor.ts";
+import { statusSettingsRecord } from "./status-card-style.ts";
 import { renderStatusMonitor, statusMonitorText } from "./status-monitor-renderer.ts";
 import { publicVersionChanges, versionCardSections, type RuntimeVersion } from "./version-card-data.ts";
 import { loadVersionCardTheme, renderVersionCard } from "./version-card-renderer.ts";
@@ -139,16 +140,18 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (rendering) return fallback();
     rendering = true;
     try {
-      const theme = await loadStatusCardTheme();
+      const settings = config ?? await readStatusConfig();
+      const theme = await loadStatusCardTheme(undefined, settings);
       if (!theme && !pro) return fallback();
       const snapshot = await Promise.resolve().then(() => runtimeStatus?.(context, pro)).catch(() => undefined);
       if (!snapshot) return pro ? "当前会话无法读取状态 Pro。" : fallback();
       if (!theme) return fallback();
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
-      const history = pro ? await (await monitor)?.snapshot() : undefined;
+      const history = pro || statusSettingsRecord(settings?.chartsCfg)?.show === true
+        ? await (await monitor)?.snapshot() : undefined;
       const sessionSignal = context.privateCredentialSignal;
       const diagnosticSignal = signal && sessionSignal ? AbortSignal.any([signal, sessionSignal]) : signal ?? sessionSignal;
-      const model = await collectStatusCard(snapshot, pro, config, history?.samples, diagnosticSignal);
+      const model = await collectStatusCard(snapshot, pro, settings, history?.samples, diagnosticSignal);
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       const result = await renderStatusCard(model, theme, context.inlineImageByteLimit);
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
@@ -167,14 +170,14 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     }
   }
 
-  function status(args = "", context?: DiagnosticsContext) {
+  function status(args = "", context?: DiagnosticsContext, config?: Record<string, unknown>) {
     if (messageStatistics && context && /^(?:机器人|用户|群|消息|日期)(?:\s|$)/u.test(args)) {
       return messageStatistics(args, context);
     }
     const summary = `Lotus-Yunzai 正在运行（Bun ${Bun.version}）`;
     if (args.trim()) return summary;
     const fallback = () => withRuntime(summary, context);
-    return runtimeStatus && context ? statusCard(context, false, fallback) : fallback();
+    return runtimeStatus && context ? statusCard(context, false, fallback, config) : fallback();
   }
 
   function renderProStatus(config: Record<string, unknown>, context?: DiagnosticsContext) {
@@ -247,7 +250,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (/^状态(?:[Pp]ro)?$/u.test(input)) {
       const config = await readStatusConfig();
       if (config?.defaultState !== true) return;
-      if (input === "状态") return status("", context);
+      if (input === "状态") return status("", context, config);
       if (config.noPro === true) return;
       return renderProStatus(config, context);
     }

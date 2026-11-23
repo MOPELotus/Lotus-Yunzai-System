@@ -4,6 +4,7 @@ import { setTimeout } from "node:timers/promises";
 import { collectStatusDetails, type StatusDetailSection } from "./status-card-details.ts";
 import type { StatusMonitorSample } from "./status-monitor.ts";
 import { collectProbeResults } from "./status-network-probes.ts";
+import { statusSettingsRecord } from "./status-card-style.ts";
 
 export interface RuntimeStatusAccount {
   readonly name: string;
@@ -130,14 +131,14 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
     }
   }
   if (detailed) resources.push(...detailed.gpu);
-  const selected = pro && Array.isArray(config.systemResources)
+  const selected = Array.isArray(config.systemResources)
     ? config.systemResources.flatMap(title => resources.filter(resource => resource.title === (title === "Node" ? "Bun" : title)))
     : resources;
   const { redis: _redis, ...session } = snapshot;
-  const charts: unknown = config.chartsCfg;
-  const networkHistory = pro && config.closedChart !== true &&
-    (charts === null || typeof charts !== "object" || !("show" in charts) || charts.show === true || charts.show === "pro") &&
-    samples.filter(sample => sample.network).length > 1 ? samples.slice(-60) : undefined;
+  const charts = statusSettingsRecord(config.chartsCfg);
+  const showNetworkHistory = charts?.show === true || (pro && (charts?.show === undefined || charts.show === "pro"));
+  const networkHistory = config.closedChart !== true && showNetworkHistory &&
+    samples.filter(sample => sample.network).length > 1 ? samples.slice(-60).map(({ at, network }) => ({ at, network })) : undefined;
   const cutoff = Date.now() - 60 * 60 * 1000;
   const redisHistory = pro && config.showRedisInfo !== false && config.closedChart !== true
     ? samples.filter(sample => sample.at >= cutoff).slice(-60) : [];

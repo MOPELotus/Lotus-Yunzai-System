@@ -10,7 +10,7 @@ import type { RuntimeStatusRedis, StatusResource } from "./status-card-data.ts";
 export interface StatusDetailSection {
   readonly title: string;
   readonly icon: "磁盘" | "网络" | "redis" | "进程负载" | "系统";
-  readonly rows: readonly (readonly [string, string])[];
+  readonly rows: readonly (readonly [string, string, number?])[];
 }
 
 const execute = promisify(execFile);
@@ -56,8 +56,9 @@ async function filesystemRows() {
         info.bavail < 0n || info.bavail > info.blocks) return;
     const used = (info.blocks - info.bfree) * info.bsize;
     const total = info.blocks * info.bsize;
+    const percentage = Number(used * 100n / total);
     return [i === 0 ? "根目录" : `数据卷 ${i}`,
-      `${bytes(used)} / ${bytes(total)}　使用 ${Number(used * 100n / total)}%　可用 ${bytes(info.bavail * info.bsize)}`] as const;
+      `${bytes(used)} / ${bytes(total)}　使用 ${percentage}%　可用 ${bytes(info.bavail * info.bsize)}`, percentage] as const;
   }));
   return sampled.filter(row => row !== undefined);
 }

@@ -65,8 +65,15 @@ export function mergeLegacyStatusConfig(current: Record<string, unknown>, legacy
   }
   if (Array.isArray(legacy.systemResources)) defaults.systemResources = legacy.systemResources;
   const legacyStyle = object(legacy.style);
-  const backdropDefault = legacyStyle?.backdropDefault;
-  if (backdropDefault === "random" || isPhoto(backdropDefault)) defaults.style = { backdropDefault };
+  if (legacyStyle) {
+    const style: Record<string, unknown> = {};
+    const backdropDefault = legacyStyle.backdropDefault;
+    if (backdropDefault === "random" || isPhoto(backdropDefault)) style.backdropDefault = backdropDefault;
+    for (const key of ["startColumn", "BotNameColor", "progressBarColor", "redisInfoValColor", "botInfoColor"]) {
+      if (Object.hasOwn(legacyStyle, key)) style[key] = legacyStyle[key];
+    }
+    if (Object.keys(style).length) defaults.style = style;
+  }
   const sections = ["monitor", "processLoad", "chartsCfg"];
   if (current.networkProbesEnabled === true) sections.push("psTestSites");
   for (const key of sections) {
@@ -77,7 +84,15 @@ export function mergeLegacyStatusConfig(current: Record<string, unknown>, legacy
   for (const key of ["style", ...sections]) {
     const previous = object(defaults[key]);
     const override = object(current[key]);
-    if (previous && override) merged[key] = { ...previous, ...override };
+    if (previous && override) {
+      const combined = { ...previous, ...override };
+      if (key === "style") for (const nested of ["progressBarColor", "botInfoColor"]) {
+        const older = object(previous[nested]);
+        const newer = object(override[nested]);
+        if (older && newer) combined[nested] = { ...older, ...newer };
+      }
+      merged[key] = combined;
+    }
   }
   return merged;
 }
@@ -89,12 +104,15 @@ export async function readStatusConfig(source?: string | URL): Promise<Record<st
   return mergeLegacyStatusConfig(current, await readConfig(legacyStatusConfig));
 }
 
-export async function readStatusBackground(source?: string | URL): Promise<string | undefined> {
-  const config = await readStatusConfig(source);
+export function statusBackdrop(config?: Record<string, unknown>): string | undefined {
   if (!config) return;
   const value = object(config.style)?.backdropDefault;
   if (value === undefined || value === "random") return "random";
   if (isPhoto(value)) return value;
+}
+
+export async function readStatusBackground(source?: string | URL): Promise<string | undefined> {
+  return statusBackdrop(await readStatusConfig(source));
 }
 
 export async function loadStatusBackground(root: string, selection: string, pick: (length: number) => number = randomInt) {
