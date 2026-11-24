@@ -43,7 +43,7 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
       "#绝区零help": "#帮助",
       "#自动签到帮助": "#帮助",
     });
-    expect(commands["#帮助"]()).toBe("https://www.lotusshared.cn/yunzai/");
+    expect(commands["#帮助"]()).toBe("点击查看帮助：\nhttps://www.lotusshared.cn/yunzai/");
     expect(await commands["#状态Pro"]("多余参数", owner)).toBe("用法：#状态Pro。");
     for (const name of ["#椰奶状态", "#椰奶状态Pro", "#椰奶状态pro", "#椰奶监控"]) {
       expect(Object.hasOwn(commands, name)).toBe(false);

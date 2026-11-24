@@ -177,7 +177,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     const summary = `Lotus-Yunzai 正在运行（Bun ${Bun.version}）`;
     if (args.trim()) return summary;
     const fallback = () => withRuntime(summary, context);
-    return runtimeStatus && context ? statusCard(context, false, fallback, config) : fallback();
+    return runtimeStatus && context && context.message_type !== "terminal" ? statusCard(context, false, fallback, config) : fallback();
   }
 
   function renderProStatus(config: Record<string, unknown>, context?: DiagnosticsContext) {
@@ -278,7 +278,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
-      "#帮助": () => helpUrl,
+      "#帮助": () => `点击查看帮助：\n${helpUrl}`,
       "#诊断": (args = "", context?: DiagnosticsContext) => {
         const summary = diagnostics();
         return args.trim() && context?.isMaster !== true ? summary : withRuntime(summary, context);
