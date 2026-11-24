@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { builtinResourceDirectory } from "../../lib/builtin-resources.ts";
 import { join } from "node:path";
 import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -5,7 +7,7 @@ import { drawInfoText, infoCardColors as colors, measureInfoText, renderInfoCard
 import { cardAssetFile } from "./local-card-assets.ts";
 import type { VersionCardRelease } from "./version-card-data.ts";
 
-const defaultDirectory = fileURLToPath(new URL("./assets/version-card/", import.meta.url));
+const defaultDirectory = builtinResourceDirectory("games/miao/common");
 
 export async function loadVersionCardTheme(directory = process.env.LOTUS_SYSTEM_VERSION_THEME_DIR || defaultDirectory) {
   const root = await realpath(directory).catch(() => undefined);
@@ -50,5 +52,10 @@ export function renderVersionCard(releases: readonly VersionCardRelease[], theme
         }
       },
     };
-  }, { mode: "gpu", themeDirectory });
+  }, { mode: "gpu", themeDirectory,
+    bodyFontPath: themeDirectory && existsSync(join(themeDirectory, "font/HYWH-65W.ttf"))
+      ? join(themeDirectory, "font/HYWH-65W.ttf") : join(builtinResourceDirectory("games/miao/common"), "font/HYWH-65W.ttf"),
+    titleFontPath: themeDirectory && existsSync(join(themeDirectory, "font/NZBZ.ttf"))
+      ? join(themeDirectory, "font/NZBZ.ttf") : join(builtinResourceDirectory("games/miao/common"), "font/NZBZ.ttf"),
+  });
 }

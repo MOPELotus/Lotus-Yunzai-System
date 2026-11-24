@@ -5,7 +5,7 @@ import type { StatusMonitorSample } from "./status-monitor.ts";
 const width = 650;
 const lineColor = "#2ec7c9";
 const secondaryColor = "#b6a2de";
-const chartFont = '"Noto Sans CJK SC", sans-serif';
+const chartFont = '"LotusInfoText", "LotusBuiltinEmoji", sans-serif';
 const GiB = 1024 ** 3;
 const time = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 const second = new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" });

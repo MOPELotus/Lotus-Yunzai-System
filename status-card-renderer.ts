@@ -1,3 +1,4 @@
+import { builtinResourceDirectory } from "../../lib/builtin-resources.ts";
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,7 +11,7 @@ import type { StatusDetailSection } from "./status-card-details.ts";
 import { statusCardStyle } from "./status-card-style.ts";
 
 // Layout and local asset paths follow Yenai-Plugin fe42a6f, resources/state/index.html and css/index.css.
-const defaultDirectory = fileURLToPath(new URL("./assets/status-card/", import.meta.url));
+const defaultDirectory = builtinResourceDirectory("system/yenai");
 const logicalWidth = 750;
 const scale = 4;
 // Skia filters and shadow distances use device pixels. Keep their former logical sizes.
@@ -49,7 +50,7 @@ export async function loadStatusCardTheme(directory = statusCardThemeDirectory()
       Promise.all(icons.map(async icon => [icon,
         await loadCardImage(theme, `state/icon/${icon}.png`).catch(() => undefined)] as const)),
     ]);
-    const family = font ? `"${font}", "Noto Sans CJK SC", sans-serif` : '"PingFang SC", "Noto Sans CJK SC", sans-serif';
+    const family = font ? `"${font}", "LotusBuiltinEmoji", sans-serif` : '"PingFang SC", "LotusBuiltinEmoji", sans-serif';
     return { background: background.image, photo: background.photo, avatar, font: family, style: statusCardStyle(config),
       online: entries.find(([name]) => name === "11")?.[1],
       icons: new Map(entries.filter((entry): entry is readonly [Icon, Image] => entry[1] !== undefined)) };
