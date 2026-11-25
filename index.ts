@@ -249,7 +249,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
 
   async function fallback(message: string, context: OriginalPhotoContext & { readonly normalizedMessage?: string }) {
     const input = message.trim();
-    if (isSystemHelpAlias(context.normalizedMessage ?? input)) return helpUrl;
+    if (isSystemHelpAlias(context.normalizedMessage ?? input)) return $t("index.text_47ea7e256d", { "helpUrl": helpUrl });
     if (/^状态(?:[Pp]ro)?$/u.test(input)) {
       const config = await readStatusConfig();
       if (config?.defaultState !== true) return;

@@ -11,7 +11,7 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
   process.env.LOTUS_SYSTEM_STATUS_THEME_DIR = directory;
   try {
     const allowed: string[] = [];
-    const { commands, aliases } = createModule({
+    const { commands, aliases, fallback } = createModule({
       runtimeStatus(context, pro) {
         allowed.push(`${context.message_type}:${pro}`);
         if (context.runtimeDiagnosticsScope === "milky") return;
@@ -44,6 +44,9 @@ test("状态 Pro 只接受宿主准入的主人私聊或授权终端，无旧素
       "#自动签到帮助": "#帮助",
     });
     expect(commands["#帮助"]()).toBe("点击查看帮助：\nhttps://www.lotusshared.cn/yunzai/");
+    for (const input of ["帮助", "/菜单", "#星铁说明", "#绝区零功能"]) {
+      expect(await fallback(input, ordinary)).toBe(commands["#帮助"]());
+    }
     expect(await commands["#状态Pro"]("多余参数", owner)).toBe("用法：#状态Pro。");
     for (const name of ["#椰奶状态", "#椰奶状态Pro", "#椰奶状态pro", "#椰奶监控"]) {
       expect(Object.hasOwn(commands, name)).toBe(false);
