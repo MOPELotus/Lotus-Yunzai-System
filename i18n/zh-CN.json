@@ -5,39 +5,39 @@
   "description": "系统命令",
   "sections": {
     "index": {
-      "description": "系统命令",
+      "description": "system 插件命令入口，负责处理 #状态、#状态Pro、#监控、#统计、#版本、#帮助、#诊断 命令与文本/图片卡片输出",
       "source": "plugins/system/index.ts"
     },
     "status-card-data": {
-      "description": "系统命令：运行状态 · 图片卡片",
+      "description": "系统状态卡片核心资源数据收集，汇总 CPU、内存、交换空间与 Bun 进程内存等占用指标",
       "source": "plugins/system/status-card-data.ts"
     },
     "status-card-details": {
-      "description": "系统命令：运行状态 · 图片卡片",
+      "description": "采集并格式化系统硬件、磁盘、网络、Redis 与进程等运行状态详情数据",
       "source": "plugins/system/status-card-details.ts"
     },
     "status-card-renderer": {
-      "description": "系统命令：运行状态 · 图片卡片",
+      "description": "系统运行状态信息卡片图片渲染",
       "source": "plugins/system/status-card-renderer.ts"
     },
     "status-monitor-io": {
-      "description": "系统命令：运行状态",
+      "description": "系统状态监控的网络与磁盘 I/O 计数器采集",
       "source": "plugins/system/status-monitor-io.ts"
     },
     "status-monitor-renderer": {
-      "description": "系统命令：运行状态",
+      "description": "系统运行监控图表与摘要渲染",
       "source": "plugins/system/status-monitor-renderer.ts"
     },
     "status-network-probes": {
-      "description": "系统命令：运行状态 · 网络",
+      "description": "系统状态中的网络连通性与延迟探测",
       "source": "plugins/system/status-network-probes.ts"
     },
     "version-card-data": {
-      "description": "系统命令：图片卡片",
+      "description": "系统版本与内置模块提交信息数据组装",
       "source": "plugins/system/version-card-data.ts"
     },
     "version-card-renderer": {
-      "description": "系统命令：图片卡片",
+      "description": "系统版本信息卡片图片渲染",
       "source": "plugins/system/version-card-renderer.ts"
     }
   },
@@ -182,150 +182,150 @@
   },
   "parameters": {
     "index.text_8bb0d9bfa9": {
-      "version": "Bun.version",
-      "platform": "process.platform",
-      "arch": "process.arch"
+      "version": "Bun 运行时版本号",
+      "platform": "操作系统平台标识",
+      "arch": "CPU 指令集架构"
     },
     "index.text_f71063a4e8": {
-      "value1": "Math.floor(process.uptime())"
+      "value1": "进程已运行的整数秒数"
     },
     "index.text_6d74c99768": {
-      "value1": "mib(rss)"
+      "value1": "进程常驻集内存（RSS）大小（MiB）"
     },
     "index.text_12e1484d50": {
-      "value1": "mib(heapUsed)",
-      "value2": "mib(heapTotal)"
+      "value1": "已使用的 JS 堆内存大小（MiB）",
+      "value2": "JS 堆总分配大小（MiB）"
     },
     "index.text_f20304d428": {
-      "version": "version"
+      "version": "公开变更日志对应的版本号"
     },
     "index.text_eaa4764faf": {
-      "version": "version"
+      "version": "宿主版本号或开发构建标识"
     },
     "index.text_368320762b": {
-      "revision": "revision",
-      "modified": "modified"
+      "revision": "宿主仓库 Git 提交哈希（前 12 位）或不可用提示",
+      "modified": "是否存在本地未提交修改的附加标识"
     },
     "index.text_969e87756b": {
-      "hours": "hours"
+      "hours": "运行时长中的小时数"
     },
     "index.text_5b189bd3b8": {
-      "minutes": "minutes"
+      "minutes": "运行时长中的分钟数"
     },
     "index.text_cc5360ff29": {
-      "value1": "hours ? `${hours} 小时 ` : \"\"",
-      "value2": "minutes ? `${minutes} 分钟 ` : \"\"",
-      "value3": "elapsed % 60"
+      "value1": "小时片段（为空或含末尾空格的“X 小时 ”）",
+      "value2": "分钟片段（为空或含末尾空格的“X 分钟 ”）",
+      "value3": "运行时长中的剩余秒数"
     },
     "index.text_1796c1cb68": {
-      "renderer": "result.engine.renderer",
-      "api": "result.engine.api",
-      "device": "result.engine.device"
+      "renderer": "图片渲染器名称",
+      "api": "渲染后端接口名称",
+      "device": "渲染使用的设备类型"
     },
     "index.text_907d967137": {
-      "version": "Bun.version"
+      "version": "Bun 运行时版本号"
     },
     "index.text_2073812db6": {
-      "renderer": "result.engine.renderer",
-      "api": "result.engine.api",
-      "device": "result.engine.device"
+      "renderer": "图片渲染器名称",
+      "api": "渲染后端接口名称",
+      "device": "渲染使用的设备类型"
     },
     "index.text_d98ab1905a": {
-      "renderer": "result.engine.renderer",
-      "api": "result.engine.api",
-      "device": "result.engine.device"
+      "renderer": "图片渲染器名称",
+      "api": "渲染后端接口名称",
+      "device": "渲染使用的设备类型"
     },
     "index.text_47ea7e256d": {
-      "helpUrl": "helpUrl"
+      "helpUrl": "帮助文档 URL 地址"
     },
     "status-card-data.text_190c51debe": {
-      "length": "cores.length"
+      "length": "CPU 逻辑核心数"
     },
     "status-card-data.text_46e9e714be": {
-      "value1": "gib(cache)"
+      "value1": "格式化后的内存缓冲区与缓存大小"
     },
     "status-card-details.text_070b144e86": {
-      "i": "i"
+      "i": "除根目录外的磁盘数据卷序号"
     },
     "status-card-details.text_e1af2af03d": {
-      "value1": "bytes(used)",
-      "value2": "bytes(total)",
-      "percentage": "percentage",
-      "value4": "bytes(info.bavail * info.bsize)"
+      "value1": "已用空间",
+      "value2": "总空间",
+      "percentage": "使用率百分比",
+      "value4": "可用空间"
     },
     "status-card-details.text_d606fcd461": {
-      "value1": "bytes(usedMib * 1024 ** 2)",
-      "value2": "bytes(capacityMib * 1024 ** 2)"
+      "value1": "已用显存",
+      "value2": "总显存容量"
     },
     "status-card-details.text_b3c5c0e4ae": {
-      "length": "full.length",
-      "running": "counts.running",
-      "sleeping": "counts.sleeping",
-      "blocked": "counts.blocked",
-      "other": "counts.other"
+      "length": "进程总数",
+      "running": "运行中进程数",
+      "sleeping": "休眠进程数",
+      "blocked": "阻塞进程数",
+      "other": "其他状态进程数"
     },
     "status-card-details.text_84cb5350f1": {
-      "value1": "value(\"version\")",
-      "value2": "value(\"uptime\")"
+      "value1": "Redis 版本",
+      "value2": "运行时长（秒）"
     },
     "status-card-details.text_7252c30a04": {
-      "value1": "used === undefined ? \"—\" : bytes(used)",
-      "percentage": "percentage",
-      "value3": "redis.peakMemory === undefined ? \"—\" : bytes(redis.peakMemory)",
-      "value4": "redis.maxMemory ? \"　上限 \" + bytes(redis.maxMemory) : \"\""
+      "value1": "已用内存大小",
+      "percentage": "内存占用百分比",
+      "value3": "峰值内存大小",
+      "value4": "最大内存上限信息"
     },
     "status-card-details.text_01c7744ff5": {
-      "value1": "value(\"clients\")",
-      "value2": "value(\"blocked\")",
-      "value3": "value(\"connections\")"
+      "value1": "当前已连接客户端数量",
+      "value2": "当前处于阻塞状态的客户端数量",
+      "value3": "累计接收的连接总次数"
     },
     "status-card-details.text_2f517a7f21": {
-      "keys": "db.keys",
-      "expires": "db.expires",
-      "averageTtl": "db.averageTtl"
+      "keys": "当前 Redis 数据库中的键总数",
+      "expires": "设置了过期时间的键数量",
+      "averageTtl": "键的平均生存时间（毫秒）"
     },
     "status-card-details.text_b98e46cb02": {
-      "value1": "availableParallelism()"
+      "value1": "逻辑核心数"
     },
     "status-card-details.text_a6880fdafb": {
-      "value1": "bytes(disk[0])",
-      "value2": "bytes(disk[1])"
+      "value1": "磁盘读取速率",
+      "value2": "磁盘写入速率"
     },
     "status-card-details.text_d3de1e9672": {
-      "value1": "bytes(network[0])",
-      "value2": "bytes(network[1])"
+      "value1": "上传速率",
+      "value2": "下载速率"
     },
     "status-card-details.text_c554419494": {
-      "value1": "bytes(traffic[0])",
-      "value2": "bytes(traffic[1])"
+      "value1": "累计上传流量",
+      "value2": "累计下载流量"
     },
     "status-card-renderer.text_39c3a96ff8": {
-      "value1": "part(Math.floor(elapsed / 86400))",
-      "value2": "part(Math.floor(elapsed / 3600) % 24)",
-      "value3": "part(Math.floor(elapsed / 60) % 60)",
-      "value4": "part(elapsed % 60)"
+      "value1": "天数",
+      "value2": "小时数",
+      "value3": "分钟数",
+      "value4": "秒数"
     },
     "status-card-renderer.text_5b1cf9ee4a": {
-      "value1": "duration(account.seconds)"
+      "value1": "Bot 运行时长"
     },
     "status-monitor-renderer.text_fb4f501970": {
-      "length": "samples.length"
+      "length": "已采集的样本数量"
     },
     "status-monitor-renderer.text_478fbe8b85": {
-      "value1": "throughput(\"network\", \"上行\", \"下行\")"
+      "value1": "格式化的网络上行与下行速率文本或无数据提示"
     },
     "status-monitor-renderer.text_d6e489ebe7": {
-      "value1": "throughput(\"disk\", \"读\", \"写\")"
+      "value1": "格式化的磁盘读写速率文本或无数据提示"
     },
     "status-monitor-renderer.text_9bc0d35ad3": {
-      "length": "samples.length"
+      "length": "已采集的样本数量"
     },
     "status-monitor-renderer.text_178edcf850": {
-      "length": "samples.length"
+      "length": "已采集的样本数量"
     },
     "version-card-data.text_368320762b": {
-      "revision": "revision",
-      "modified": "modified"
+      "revision": "宿主仓库提交号（或不可用提示）",
+      "modified": "工作区存在本地修改时的附加标记"
     }
   }
 }
