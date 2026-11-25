@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { readFile } from "node:fs/promises";
 import { arch, cpus, freemem, platform, totalmem, uptime } from "node:os";
 import { setTimeout } from "node:timers/promises";
@@ -111,13 +114,13 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
   const resources: StatusResource[] = [];
   if (load !== undefined) {
     resources.push({ title: "CPU", percent: load,
-      ...(pro && { detail: cores[0]?.model, info: [`${cores.length} 核`] }) });
+      ...(pro && { detail: cores[0]?.model, info: [$t("status-card-data.text_190c51debe", { "length": cores.length })] }) });
   }
   if (total > 0 && used >= 0 && used <= total) {
     const cache = usedWithCache - used;
     resources.push({ title: "RAM", percent: used / total * 100,
       ...(cache > 0 && { bufferPercent: usedWithCache / total * 100 }),
-      ...(pro && { info: [`${gib(used)} / ${gib(total)}`, ...(cache > 0 ? [`缓冲区/缓存 ${gib(cache)}`] : [])] }) });
+      ...(pro && { info: [`${gib(used)} / ${gib(total)}`, ...(cache > 0 ? [$t("status-card-data.text_46e9e714be", { "value1": gib(cache) })] : [])] }) });
     if (pro) {
       const swapTotal = memory.get("SwapTotal");
       const swapFree = memory.get("SwapFree");
@@ -127,7 +130,7 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
           detail: `Available ${gib(swapFree)}`, info: [`${gib(swapUsed)} / ${gib(swapTotal)}`] });
       }
       const rss = process.memoryUsage().rss;
-      resources.push({ title: "Bun", percent: rss / total * 100, detail: gib(rss), info: ["进程常驻内存"] });
+      resources.push({ title: "Bun", percent: rss / total * 100, detail: gib(rss), info: [$t("status-card-data.text_4097c47b8d")] });
     }
   }
   if (detailed) resources.push(...detailed.gpu);
@@ -143,7 +146,7 @@ export async function collectStatusCard(snapshot: RuntimeStatusSnapshot, pro: bo
   const redisHistory = pro && config.showRedisInfo !== false && config.closedChart !== true
     ? samples.filter(sample => sample.at >= cutoff).slice(-60) : [];
   const details = detailed?.sections ?? [];
-  const network = details.findIndex(section => section.title === "网络信息");
+  const network = details.findIndex(section => section.icon === "网络");
   if (probes) details.splice(network === -1 ? 0 : network + 1, 0, probes);
   return { ...session, platform: platform(), runtime: `${arch()} · Bun ${Bun.version}`, uptime: uptime(), resources: [...new Set(selected)],
     ...(details.length && { details }), ...(networkHistory && { networkHistory }),

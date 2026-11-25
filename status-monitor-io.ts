@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { readFile, readlink, readdir, statfs } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
@@ -43,9 +46,9 @@ async function deviceSnapshot(directory: string, identityFile: string,
     // Lower devices account for the I/O of upper virtual devices such as bridges, VLAN, dm and md.
     if (!canonical.startsWith("/sys/devices/") || canonical.startsWith("/sys/devices/virtual/")) return;
     const identity = await attribute(path, identityFile);
-    if (!counter(identity)) throw new Error("设备标识不可用");
+    if (!counter(identity)) throw new Error($t("status-monitor-io.text_d2e51e1fc8"));
     const values = await read(path);
-    if (identity !== await attribute(path, identityFile)) throw new Error("采样期间设备已变更");
+    if (identity !== await attribute(path, identityFile)) throw new Error($t("status-monitor-io.text_1eda52a350"));
     return [canonical + ":" + identity, values] as const;
   }));
   const counters = new Map(rows.filter(row => row !== undefined));
@@ -62,13 +65,13 @@ async function networkCounters(entry: string) {
   ]);
   const tx = counter(txValue);
   const rx = counter(rxValue);
-  if (tx === undefined || rx === undefined) throw new Error("网络计数不可用");
+  if (tx === undefined || rx === undefined) throw new Error($t("status-monitor-io.text_535b69c7a0"));
   return [tx, rx] as const;
 }
 
 async function diskCounters(entry: string) {
   const values = diskSectorCounters(await attribute(entry, "stat"));
-  if (!values) throw new Error("磁盘计数不可用");
+  if (!values) throw new Error($t("status-monitor-io.text_d0aaf13bde"));
   return values;
 }
 

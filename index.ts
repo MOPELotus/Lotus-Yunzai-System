@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { collectStatusCard, type RuntimeStatusSnapshot } from "./status-card-data.ts";
 import { loadStatusCardTheme, renderStatusCard, statusCardThemeDirectory } from "./status-card-renderer.ts";
 import { readStatusConfig, readStatusOriginal } from "./status-background.ts";
@@ -20,11 +23,11 @@ function diagnostics(): string {
   const { rss, heapUsed, heapTotal } = process.memoryUsage();
   const mib = (bytes: number) => (bytes / 1024 ** 2).toFixed(1);
   return [
-    "Lotus-Yunzai 运行诊断",
-    `运行环境　Bun ${Bun.version} · ${process.platform}/${process.arch}`,
-    `运行时间　${Math.floor(process.uptime())} 秒`,
-    `常驻内存　${mib(rss)} MiB`,
-    `JS 堆内存　${mib(heapUsed)} / ${mib(heapTotal)} MiB`,
+    $t("index.text_c90078a108"),
+    $t("index.text_8bb0d9bfa9", { "version": Bun.version, "platform": process.platform, "arch": process.arch }),
+    $t("index.text_f71063a4e8", { "value1": Math.floor(process.uptime()) }),
+    $t("index.text_6d74c99768", { "value1": mib(rss) }),
+    $t("index.text_12e1484d50", { "value1": mib(heapUsed), "value2": mib(heapTotal) }),
   ].join("\n");
 }
 
@@ -62,21 +65,21 @@ type RuntimeDiagnostics = (context: DiagnosticsContext) => {
 type RuntimeStatus = (context: DiagnosticsContext, pro: boolean) =>
   RuntimeStatusSnapshot | Promise<RuntimeStatusSnapshot | undefined> | undefined;
 function versionSummary(runtime?: RuntimeVersion): string {
-  const version = runtime?.version || "开发构建";
-  const revision = runtime?.revision?.slice(0, 12) || "提交号不可用";
-  const modified = runtime?.modified ? "（有本地修改）" : "";
+  const version = runtime?.version || $t("index.text_53fd643fa6");
+  const revision = runtime?.revision?.slice(0, 12) || $t("index.text_63cffd447f");
+  const modified = runtime?.modified ? $t("index.text_c453df6435") : "";
   const modules = runtime?.modules.map(({ name, revision }) => `${name}　${revision.slice(0, 12)}`) ?? [];
   const changes = publicVersionChanges(runtime).flatMap(({ version, entries }) => [
-    "", `Lotus-Yunzai 版本 ${version}`,
+    "", $t("index.text_f20304d428", { "version": version }),
     ...entries.flatMap(({ title, notes }) => [`· ${title}`, ...(notes ?? []).map(note => `  ◦ ${note}`)]),
   ]);
   return [
-    "Lotus-Yunzai 版本",
-    `宿主版本　${version}`,
-    `宿主提交　${revision}${modified}`,
+    $t("index.text_738e2da28a"),
+    $t("index.text_eaa4764faf", { "version": version }),
+    $t("index.text_368320762b", { "revision": revision, "modified": modified }),
     "",
-    "内置模块",
-    ...(modules.length ? modules : ["暂无内置模块版本记录"]),
+    $t("index.text_0f5e7ba3d2"),
+    ...(modules.length ? modules : [$t("index.text_780ac58fe9")]),
     ...changes,
   ].join("\n");
 }
@@ -85,7 +88,7 @@ function uptime(seconds: number): string {
   const elapsed = Math.floor(seconds);
   const hours = Math.floor(elapsed / 3600);
   const minutes = Math.floor(elapsed / 60) % 60;
-  return `${hours ? `${hours} 小时 ` : ""}${minutes ? `${minutes} 分钟 ` : ""}${elapsed % 60} 秒`;
+  return $t("index.text_cc5360ff29", { "value1": hours ? $t("index.text_969e87756b", { "hours": hours }) : "", "value2": minutes ? $t("index.text_5b189bd3b8", { "minutes": minutes }) : "", "value3": elapsed % 60 });
 }
 
 export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVersion, runtimeStatus,
@@ -117,11 +120,11 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     return [
       summary,
       "",
-      "账号在线时长",
-      ...(accountRows.length ? accountRows : ["暂无在线账号"]),
+      $t("index.text_c151a6d094"),
+      ...(accountRows.length ? accountRows : [$t("index.text_8efa8cd3f5")]),
       "",
-      "插件加载用时",
-      ...(pluginRows.length ? pluginRows : ["暂无插件加载记录"]),
+      $t("index.text_83015f8861"),
+      ...(pluginRows.length ? pluginRows : [$t("index.text_24036f3fd3")]),
     ].join("\n");
   }
 
@@ -134,7 +137,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       typeof user_id === "number" && Number.isSafeInteger(user_id) && user_id > 0 &&
       (isMaster === true || runtimeDiagnosticsScope === "milky");
     if (pro && !ownerTerminal && !ownerPrivate) {
-      return "状态 Pro 仅供当前机器人的主人私聊或授权终端查看。";
+      return $t("index.text_b2bbf4f815");
     }
     if (context.privateCredentialSignal?.aborted || signal?.aborted || context.isDelegated) return;
     if (rendering) return fallback();
@@ -144,7 +147,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       const theme = await loadStatusCardTheme(undefined, settings);
       if (!theme && !pro) return fallback();
       const snapshot = await Promise.resolve().then(() => runtimeStatus?.(context, pro)).catch(() => undefined);
-      if (!snapshot) return pro ? "当前会话无法读取状态 Pro。" : fallback();
+      if (!snapshot) return pro ? $t("index.text_61017dad72") : fallback();
       if (!theme) return fallback();
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       const history = pro || statusSettingsRecord(settings?.chartsCfg)?.show === true
@@ -155,7 +158,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
       const result = await renderStatusCard(model, theme, context.inlineImageByteLimit);
       if (context.privateCredentialSignal?.aborted || signal?.aborted) return;
-      console.log(`[渲染] 运行状态 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+      console.log($t("index.text_1796c1cb68", { "renderer": result.engine.renderer, "api": result.engine.api, "device": result.engine.device }));
       const message = { type: "image" as const, file: result.png };
       if (context.runtimeStatusScope !== "onebot" && context.runtimeStatusScope !== "milky") return message;
       const { photo } = theme;
@@ -174,26 +177,26 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     if (messageStatistics && context && /^(?:机器人|用户|群|消息|日期)(?:\s|$)/u.test(args)) {
       return messageStatistics(args, context);
     }
-    const summary = `Lotus-Yunzai 正在运行（Bun ${Bun.version}）`;
+    const summary = $t("index.text_907d967137", { "version": Bun.version });
     if (args.trim()) return summary;
     const fallback = () => withRuntime(summary, context);
     return runtimeStatus && context && context.message_type !== "terminal" ? statusCard(context, false, fallback, config) : fallback();
   }
 
   function renderProStatus(config: Record<string, unknown>, context?: DiagnosticsContext) {
-    if (!context) return "当前会话无法读取状态 Pro。";
+    if (!context) return $t("index.text_61017dad72");
     return statusCard(context, true, () => withRuntime(diagnostics(), context), config);
   }
 
   async function proStatus(args = "", context?: DiagnosticsContext) {
     const config = await readStatusConfig();
     if (!config || config.noPro === true) return;
-    if (args.trim()) return "用法：#状态Pro。";
+    if (args.trim()) return $t("index.text_f07d382151");
     return renderProStatus(config, context);
   }
 
   async function statusMonitor(args = "", context?: DiagnosticsContext) {
-    if (args.trim()) return "用法：#监控。";
+    if (args.trim()) return $t("index.text_19c83583f3");
     const snapshot = await (await monitor)?.snapshot();
     const samples = snapshot?.samples ?? [];
     const enabled = snapshot?.enabled;
@@ -204,7 +207,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       const theme = await loadStatusCardTheme();
       if (!theme || signal?.aborted) return fallback();
       const result = await renderStatusMonitor(samples, enabled);
-      console.log(`[渲染] 运行监控 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+      console.log($t("index.text_2073812db6", { "renderer": result.engine.renderer, "api": result.engine.api, "device": result.engine.device }));
       return { type: "image" as const, file: result.png };
     } catch {
       return fallback();
@@ -218,7 +221,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       const themeDirectory = await loadVersionCardTheme();
       if (!themeDirectory) return versionSummary(runtimeVersion);
       const result = await renderVersionCard(versionCardSections(runtimeVersion), themeDirectory);
-      console.log(`[渲染] 版本 ${result.engine.renderer} ${result.engine.api} ${result.engine.device}`);
+      console.log($t("index.text_d98ab1905a", { "renderer": result.engine.renderer, "api": result.engine.api, "device": result.engine.device }));
       return { type: "image" as const, file: result.png };
     } catch {
       // The text and terminal report remain available when the local theme cannot be rendered.
@@ -261,7 +264,7 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
     dispose: async () => (await monitor)?.dispose(),
     fallback,
     fallbackFeatures: ({ normalizedMessage }: { readonly normalizedMessage: string }) =>
-      isSystemHelpAlias(normalizedMessage) ? [] : ["[system] 状态"],
+      isSystemHelpAlias(normalizedMessage) ? [] : [$t("index.text_d8679affb4")],
     aliases: {
       "#状态pro": "#状态Pro",
       "#help": "#帮助",
@@ -275,10 +278,10 @@ export function createModule({ messageStatistics, runtimeDiagnostics, runtimeVer
       "#状态": status,
       "#状态Pro": proStatus,
       "#监控": statusMonitor,
-      "#统计": messageStatistics ?? (() => "消息统计当前不可用。"),
+      "#统计": messageStatistics ?? (() => $t("index.text_12ead09c08")),
       "#版本": (_args = "", context?: StatisticsContext) =>
         runtimeVersion && context && context.message_type !== "terminal" ? versionCard() : versionSummary(runtimeVersion),
-      "#帮助": () => `点击查看帮助：\n${helpUrl}`,
+      "#帮助": () => $t("index.text_47ea7e256d", { "helpUrl": helpUrl }),
       "#诊断": (args = "", context?: DiagnosticsContext) => {
         const summary = diagnostics();
         return args.trim() && context?.isMaster !== true ? summary : withRuntime(summary, context);

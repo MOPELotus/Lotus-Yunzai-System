@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { execFile } from "node:child_process";
 import { readFile, readdir, statfs } from "node:fs/promises";
 import { arch, availableParallelism, cpus, release, totalmem } from "node:os";
@@ -57,8 +60,8 @@ async function filesystemRows() {
     const used = (info.blocks - info.bfree) * info.bsize;
     const total = info.blocks * info.bsize;
     const percentage = Number(used * 100n / total);
-    return [i === 0 ? "根目录" : `数据卷 ${i}`,
-      `${bytes(used)} / ${bytes(total)}　使用 ${percentage}%　可用 ${bytes(info.bavail * info.bsize)}`, percentage] as const;
+    return [i === 0 ? $t("status-card-details.text_42ee2863b6") : $t("status-card-details.text_070b144e86", { "i": i }),
+      $t("status-card-details.text_e1af2af03d", { "value1": bytes(used), "value2": bytes(total), "percentage": percentage, "value4": bytes(info.bavail * info.bsize) }), percentage] as const;
   }));
   return sampled.filter(row => row !== undefined);
 }
@@ -72,7 +75,7 @@ export function parseStatusGpu(raw: string): StatusResource[] {
     const [percent, usedMib, capacityMib] = [Number(load), Number(used), Number(total)];
     if (percent > 100 || capacityMib <= 0 || usedMib > capacityMib || !Number.isFinite(capacityMib)) return [];
     return [{ title: "GPU", percent, detail: label(name),
-      info: [`显存 ${bytes(usedMib * 1024 ** 2)} / ${bytes(capacityMib * 1024 ** 2)}`] }];
+      info: [$t("status-card-details.text_d606fcd461", { "value1": bytes(usedMib * 1024 ** 2), "value2": bytes(capacityMib * 1024 ** 2) })] }];
   }).slice(0, 8);
 }
 
@@ -155,8 +158,8 @@ function processRows(previous: ReadonlyMap<string, ProcessReading>, current: Rea
   const names = processNames(config?.list);
   const observed = [...new Map([...selected, ...full.filter(row => names.includes(row.name))].map(row => [row.pid, row])).values()];
   return [
-    ["进程数", `全部 ${full.length}　运行 ${counts.running}　休眠 ${counts.sleeping}　阻塞 ${counts.blocked}　其他 ${counts.other}`],
-    ...observed.slice(0, 20).map(row => [row.name || "进程", `CPU ${row.cpu === undefined ? "—" : row.cpu.toFixed(1) + "%"}　RAM ${bytes(row.memory)}`] as const),
+    [$t("status-card-details.text_2b1548cd60"), $t("status-card-details.text_b3c5c0e4ae", { "length": full.length, "running": counts.running, "sleeping": counts.sleeping, "blocked": counts.blocked, "other": counts.other })],
+    ...observed.slice(0, 20).map(row => [row.name || $t("status-card-details.text_9bfb43ada1"), `CPU ${row.cpu === undefined ? "—" : row.cpu.toFixed(1) + "%"}　RAM ${bytes(row.memory)}`] as const),
   ];
 }
 
@@ -201,11 +204,11 @@ function redisRows(redis: RuntimeStatusRedis): StatusDetailSection["rows"] {
   const used = redis.usedMemory;
   const percentage = used !== undefined && capacity > 0 ? `（${(used / capacity * 100).toFixed(2)}%）` : "";
   return [
-    ["版本", `${value("version")}　运行 ${value("uptime")} 秒`],
-    ["内存", `${used === undefined ? "—" : bytes(used)}${percentage}　峰值 ${redis.peakMemory === undefined ? "—" : bytes(redis.peakMemory)}${redis.maxMemory ? "　上限 " + bytes(redis.maxMemory) : ""}`],
-    ["连接", `客户端 ${value("clients")}　阻塞 ${value("blocked")}　累计 ${value("connections")}`],
-    ["累计命令", String(value("commands"))],
-    ...redis.databases.map(db => [`db${db.index}`, `键数 ${db.keys}　有期限 ${db.expires}　平均 TTL ${db.averageTtl} ms`] as const),
+    [$t("status-card-details.text_5f76b2bf82"), $t("status-card-details.text_84cb5350f1", { "value1": value("version"), "value2": value("uptime") })],
+    [$t("status-card-details.text_7d8f8c37ec"), $t("status-card-details.text_7252c30a04", { "value1": used === undefined ? "—" : bytes(used), "percentage": percentage, "value3": redis.peakMemory === undefined ? "—" : bytes(redis.peakMemory), "value4": redis.maxMemory ? $t("status-card-details.text_84bd004d86") + bytes(redis.maxMemory) : "" })],
+    [$t("status-card-details.text_a5574109f0"), $t("status-card-details.text_01c7744ff5", { "value1": value("clients"), "value2": value("blocked"), "value3": value("connections") })],
+    [$t("status-card-details.text_5f99b7a110"), String(value("commands"))],
+    ...redis.databases.map(db => [`db${db.index}`, $t("status-card-details.text_2f517a7f21", { "keys": db.keys, "expires": db.expires, "averageTtl": db.averageTtl })] as const),
   ];
 }
 
@@ -268,16 +271,16 @@ async function systemDetails(gpu: readonly StatusResource[]) {
   const shell = shellName();
   const host = [...new Set([vendor, product].filter(Boolean))].join(" · ");
   return { title: "FastFetch", icon: "系统", rows: [
-    ["系统", os || process.platform], ["内核", release()], ["架构", arch()],
-    ["处理器", [cpu, `${availableParallelism()} 逻辑核心`].filter(Boolean).join(" · ")],
+    [$t("status-card-details.text_5b50d7c4b5"), os || process.platform], [$t("status-card-details.text_416baf7ad2"), release()], [$t("status-card-details.text_8b784b6288"), arch()],
+    [$t("status-card-details.text_43b8de30fe"), [cpu, $t("status-card-details.text_b98e46cb02", { "value1": availableParallelism() })].filter(Boolean).join(" · ")],
     ...gpu.flatMap(item => item.detail ? [["GPU", item.detail] as const] : []),
-    ["物理内存", bytes(totalmem())],
-    ...(board ? [["主板", board] as const] : []),
+    [$t("status-card-details.text_ddc00e6620"), bytes(totalmem())],
+    ...(board ? [[$t("status-card-details.text_0c8c71a8c4"), board] as const] : []),
     ...(bios ? [["BIOS", [bios, biosDate].filter(Boolean).join(" · ")] as const] : []),
-    ...(packages ? [["包", packages] as const] : []),
-    ...(host ? [["主机", host] as const] : []),
-    ...(shell ? [["终端", shell] as const] : []),
-    ...(displays ? [["分辨率（支持）", displays] as const] : []),
+    ...(packages ? [[$t("status-card-details.text_26b9c4d244"), packages] as const] : []),
+    ...(host ? [[$t("status-card-details.text_e87d9f23a3"), host] as const] : []),
+    ...(shell ? [[$t("status-card-details.text_e2a76ef1f1"), shell] as const] : []),
+    ...(displays ? [[$t("status-card-details.text_a157197299"), displays] as const] : []),
   ] } as const satisfies StatusDetailSection;
 }
 
@@ -300,14 +303,14 @@ export async function collectStatusDetails(config: Record<string, unknown>, redi
   const network = statusIoRates(first.network, last.network);
   const traffic = totalTraffic(last.network);
   const sections: StatusDetailSection[] = [];
-  if (volumes.length || disk) sections.push({ title: "硬盘信息", icon: "磁盘", rows: [...volumes,
-    ...(disk ? [["磁盘读写", `读 ${bytes(disk[0])}/s　写 ${bytes(disk[1])}/s`] as const] : [])] });
-  if (network || traffic) sections.push({ title: "网络信息", icon: "网络", rows: [
-    ...(network ? [["当前速率", `上传 ${bytes(network[0])}/s　下载 ${bytes(network[1])}/s`] as const] : []),
-    ...(traffic ? [["累计流量", `上传 ${bytes(traffic[0])}　下载 ${bytes(traffic[1])}`] as const] : []),
+  if (volumes.length || disk) sections.push({ title: $t("status-card-details.text_f1a586cb6b"), icon: "磁盘", rows: [...volumes,
+    ...(disk ? [[$t("status-card-details.text_6acb471003"), $t("status-card-details.text_a6880fdafb", { "value1": bytes(disk[0]), "value2": bytes(disk[1]) })] as const] : [])] });
+  if (network || traffic) sections.push({ title: $t("status-card-details.text_a4e0c07e95"), icon: "网络", rows: [
+    ...(network ? [[$t("status-card-details.text_c6252615ab"), $t("status-card-details.text_d3de1e9672", { "value1": bytes(network[0]), "value2": bytes(network[1]) })] as const] : []),
+    ...(traffic ? [[$t("status-card-details.text_d5834c7625"), $t("status-card-details.text_c554419494", { "value1": bytes(traffic[0]), "value2": bytes(traffic[1]) })] as const] : []),
   ] });
-  if (redis && config.showRedisInfo !== false) sections.push({ title: "Redis 服务器", icon: "redis", rows: redisRows(redis) });
-  if (processes.length) sections.push({ title: "进程负载", icon: "进程负载", rows: processes });
+  if (redis && config.showRedisInfo !== false) sections.push({ title: $t("status-card-details.text_1150037c93"), icon: "redis", rows: redisRows(redis) });
+  if (processes.length) sections.push({ title: $t("status-card-details.text_663e388486"), icon: "进程负载", rows: processes });
   if (config.showFastFetch !== false) sections.push(await systemDetails(gpu));
   return { gpu, sections };
 }

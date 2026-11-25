@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 export interface VersionCardEntry {
   readonly title: string;
   readonly notes?: readonly string[];
@@ -46,16 +49,16 @@ export function publicVersionChanges(runtime?: RuntimeVersion): readonly Version
 }
 
 export function versionCardSections(runtime?: RuntimeVersion): readonly VersionCardRelease[] {
-  const version = runtime?.version || "开发构建";
-  const revision = runtime?.revision?.slice(0, 12) || "提交号不可用";
-  const modified = runtime?.modified ? "（有本地修改）" : "";
+  const version = runtime?.version || $t("version-card-data.text_53fd643fa6");
+  const revision = runtime?.revision?.slice(0, 12) || $t("version-card-data.text_63cffd447f");
+  const modified = runtime?.modified ? $t("version-card-data.text_c453df6435") : "";
   const modules = runtime?.modules.map(({ name, revision }) => `${name}　${revision.slice(0, 12)}`) ?? [];
   const releases = publicVersionChanges(runtime);
   const current = releases.find(release => release.version === version);
   return [
     { version, entries: [
-      { title: `宿主提交　${revision}${modified}` },
-      { title: "内置模块", notes: modules.length ? modules : ["暂无内置模块版本记录"] },
+      { title: $t("version-card-data.text_368320762b", { "revision": revision, "modified": modified }) },
+      { title: $t("version-card-data.text_0f5e7ba3d2"), notes: modules.length ? modules : [$t("version-card-data.text_780ac58fe9")] },
       ...(current?.entries ?? []),
     ] },
     ...releases.filter(release => release.version !== version).slice(0, 4),

@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { existsSync } from "node:fs";
 import { builtinResourceDirectory } from "../../lib/builtin-resources.ts";
 import { join } from "node:path";
@@ -20,7 +23,7 @@ export async function loadVersionCardTheme(directory = process.env.LOTUS_SYSTEM_
 }
 
 export function renderVersionCard(releases: readonly VersionCardRelease[], themeDirectory?: string) {
-  return renderInfoCard({ title: "版本信息", width: 600 }, ({ x, y, width, measure }) => {
+  return renderInfoCard({ title: $t("version-card-renderer.text_2da3906a24"), width: 600 }, ({ x, y, width, measure }) => {
     const sections = releases.map(release => {
       const title = measureInfoText(measure, release.version, width - 32, 22);
       const entries = release.entries.map(({ title, notes = [] }) => ({

@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { lookup } from "node:dns";
 import { request } from "node:https";
 import { isIP } from "node:net";
@@ -85,7 +88,7 @@ function publicAddress(hostname: string, signal: AbortSignal) {
     lookup(hostname, { all: true }, (error, addresses) => {
       signal.removeEventListener("abort", stop);
       if (error) return reject(error);
-      if (!addresses.length || addresses.some(item => !isPublicProbeAddress(item.address))) return reject(new Error("不可探测该地址"));
+      if (!addresses.length || addresses.some(item => !isPublicProbeAddress(item.address))) return reject(new Error($t("status-network-probes.text_357ffd8c5b")));
       resolve(addresses[0]!);
     });
   });
@@ -126,17 +129,17 @@ export async function collectProbeResults(config: Record<string, unknown>, reque
       const start = performance.now();
       try {
         if (useProxy && !settings.proxy) {
-          rows[current] = [name, "未配置探测代理"];
+          rows[current] = [name, $t("status-network-probes.text_6b1a7d3369")];
           continue;
         }
         const code = await open(target, signal, useProxy ? settings.proxy : undefined);
         rows[current] = [name, `HTTP ${code}　${Math.round(performance.now() - start)} ms`];
       } catch {
-        rows[current] = [name, signal.aborted ? "超时" : "连接失败"];
+        rows[current] = [name, signal.aborted ? $t("status-network-probes.text_e512cf016f") : $t("status-network-probes.text_89c4766afc")];
       }
     }
   }));
   if (requestSignal?.aborted) return;
-  const results = settings.list.map(({ name }, position) => rows[position] ?? [name, "超时"] as const);
-  return { title: "网络测试", icon: "网络", rows: results } as const satisfies StatusDetailSection;
+  const results = settings.list.map(({ name }, position) => rows[position] ?? [name, $t("status-network-probes.text_e512cf016f")] as const);
+  return { title: $t("status-network-probes.text_c2b7d1d160"), icon: "网络", rows: results } as const satisfies StatusDetailSection;
 }

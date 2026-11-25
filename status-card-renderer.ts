@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { builtinResourceDirectory } from "../../lib/builtin-resources.ts";
 import { realpath } from "node:fs/promises";
 import { join } from "node:path";
@@ -17,8 +20,8 @@ const scale = 4;
 // Skia filters and shadow distances use device pixels. Keep their former logical sizes.
 const effectScale = scale / 1.4;
 const icons = [
-  "11", "机器人", "platform", "时间", "friend", "group", "groupMember", "sent", "recv", "screenshot",
-  "系统", "主机名", "time", "插件", "资源", "磁盘", "网络", "redis", "进程负载",
+  "11", $t("status-card-renderer.text_a4d1441486"), "platform", $t("status-card-renderer.text_8b6ff49851"), "friend", "group", "groupMember", "sent", "recv", "screenshot",
+  $t("status-card-renderer.text_5b50d7c4b5"), $t("status-card-renderer.text_0224c3f667"), "time", $t("status-card-renderer.text_e806fbbe8e"), $t("status-card-renderer.text_daa6d02a55"), $t("status-card-renderer.text_de7b72a3f8"), $t("status-card-renderer.text_97b31b5d63"), "redis", $t("status-card-renderer.text_663e388486"),
 ] as const;
 type Icon = typeof icons[number];
 interface Theme {
@@ -84,7 +87,7 @@ function text(ctx: Context, value: string, x: number, y: number, width?: number,
 function duration(seconds: number) {
   const elapsed = Math.floor(Math.max(0, seconds));
   const part = (n: number) => String(n).padStart(2, "0");
-  return `${part(Math.floor(elapsed / 86400))}天 ${part(Math.floor(elapsed / 3600) % 24)}:${part(Math.floor(elapsed / 60) % 60)}:${part(elapsed % 60)}`;
+  return $t("status-card-renderer.text_39c3a96ff8", { "value1": part(Math.floor(elapsed / 86400)), "value2": part(Math.floor(elapsed / 3600) % 24), "value3": part(Math.floor(elapsed / 60) % 60), "value4": part(elapsed % 60) });
 }
 
 function icon(ctx: Context, theme: Theme, name: Icon, x: number, y: number, size: number) {
@@ -145,14 +148,14 @@ interface Badge {
 function badgeRows(ctx: Context, theme: Theme, account: RuntimeStatusAccount) {
   const { botVersionColor, botPlatformColor, botUptimeColor, contactColors } = theme.style;
   const version: Badge[] = [
-    { label: "Lotus-Yunzai", icon: "机器人", color: botVersionColor },
+    { label: $t("status-card-renderer.text_3867834e77"), icon: "机器人", color: botVersionColor },
     { label: account.adapter === "milky" ? "Milky v1" : "OneBot v11", icon: "platform", color: botPlatformColor },
-    { label: `Bot已运行 ${duration(account.seconds)}`, icon: "时间", color: botUptimeColor },
+    { label: $t("status-card-renderer.text_5b1cf9ee4a", { "value1": duration(account.seconds) }), icon: "时间", color: botUptimeColor },
   ];
   const contact: Badge[] = [];
   const stats = [
-    [account.friends, "好友", "friend"], [account.groups, "群组", "group"], [account.members, "群员", "groupMember"],
-    [account.sent, "发", "sent"], [account.received, "收", "recv"], [account.images, "图片", "screenshot"],
+    [account.friends, $t("status-card-renderer.text_b9b1480dd6"), "friend"], [account.groups, $t("status-card-renderer.text_f3f8bcf3f5"), "group"], [account.members, $t("status-card-renderer.text_af43d2e34f"), "groupMember"],
+    [account.sent, $t("status-card-renderer.text_05b5d32c72"), "sent"], [account.received, $t("status-card-renderer.text_339bacf403"), "recv"], [account.images, $t("status-card-renderer.text_d24c10d37d"), "screenshot"],
   ] as const;
   for (const [value, suffix, name] of stats) {
     if (value === undefined || value === 0 || value === "0") continue;
@@ -282,10 +285,10 @@ function drawAccount(ctx: Context, theme: DrawTheme, height: number, account: Ru
 
 function drawSystem(ctx: Context, theme: DrawTheme, height: number, model: StatusCardModel, y: number) {
   const items = [
-    ["系统", "系统", model.platform, model.runtime],
-    ["主机名", "主机名", "隐藏", undefined],
-    ["运行时间", "time", duration(model.uptime), undefined],
-    ["插件数", "插件", model.pluginCount === undefined ? "—" : `${model.pluginCount} plugins`,
+    [$t("status-card-renderer.text_5b50d7c4b5"), $t("status-card-renderer.text_5b50d7c4b5"), model.platform, model.runtime],
+    [$t("status-card-renderer.text_0224c3f667"), $t("status-card-renderer.text_0224c3f667"), $t("status-card-renderer.text_145219e726"), undefined],
+    [$t("status-card-renderer.text_5986e9d976"), "time", duration(model.uptime), undefined],
+    [$t("status-card-renderer.text_b3bc288137"), $t("status-card-renderer.text_e806fbbe8e"), model.pluginCount === undefined ? "—" : `${model.pluginCount} plugins`,
       model.scriptCount === undefined ? undefined : `${model.scriptCount} js`],
   ] as const;
   for (const [index, [label, symbol, value, secondary]] of items.entries()) {
@@ -481,14 +484,14 @@ function historyChart(model: StatusCardModel, theme: Theme): StatusChart[] {
   }));
   const palette = theme.style.chartColors;
   if (network) candidates.push({
-    title: "网络流量", icon: "网络", axes: value => (value / 1024).toFixed(1) + " KiB/s",
-    series: [{ label: "上传", color: palette[0]! }, { label: "下载", color: palette[1 % palette.length]! }], history: network,
+    title: $t("status-card-renderer.text_0cd22cdd85"), icon: "网络", axes: value => (value / 1024).toFixed(1) + " KiB/s",
+    series: [{ label: $t("status-card-renderer.text_9e07e3c053"), color: palette[0]! }, { label: $t("status-card-renderer.text_4673a23061"), color: palette[1 % palette.length]! }], history: network,
   });
   const redis = model.redisHistory?.filter(row => Number.isSafeInteger(row.at)).map(({ at, redisClients }) => ({
     at, values: redisClients !== undefined && Number.isSafeInteger(redisClients) && redisClients >= 0 ? [redisClients] : undefined,
   }));
   if (redis) candidates.push({
-    title: "Redis 连接数", icon: "redis", axes: value => String(value), series: [{ label: "客户端", color: "#a64136" }], history: redis,
+    title: $t("status-card-renderer.text_dc1e7cb9e3"), icon: "redis", axes: value => String(value), series: [{ label: $t("status-card-renderer.text_477581b84e"), color: "#a64136" }], history: redis,
   });
   return candidates.filter(chart => chart.history.filter(sample => sample.values).length > 1);
 }
@@ -546,7 +549,7 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
   if (resourceRows.length) {
     const panelHeight = 42 + resourceRows.reduce((sum, row) => sum + row.height, 0);
     panels.push({ height: panelHeight, draw(ctx, layoutTheme, height, y) {
-      sectionHeader(ctx, layoutTheme, height, y, panelHeight, "资源", "资源使用");
+      sectionHeader(ctx, layoutTheme, height, y, panelHeight, $t("status-card-renderer.text_daa6d02a55"), $t("status-card-renderer.text_c85c789152"));
       let rowY = y + 62;
       for (const [row, { items, height }] of resourceRows.entries()) {
         for (const [column, resource] of items.entries()) {
@@ -588,7 +591,7 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
     ctx.shadowBlur = 1 * effectScale;
     ctx.shadowColor = "#000";
     const footerCenter = width / 2;
-    text(ctx, "Created By Lotus-Yunzai", footerCenter, footerY + 17);
+    text(ctx, $t("status-card-renderer.text_d41c915582"), footerCenter, footerY + 17);
     const runtimeWidth = ctx.measureText("Bun " + Bun.version).width;
     ctx.textAlign = "left";
     text(ctx, "Bun", footerCenter - runtimeWidth / 2, footerY + 38);
@@ -605,5 +608,5 @@ export async function renderStatusCard(model: StatusCardModel, theme: Theme, inl
     const reduced = await render(2);
     if (reduced.png.byteLength <= inlineImageByteLimit) return reduced;
   }
-  throw new RangeError("状态图超过当前会话图片大小上限。");
+  throw new RangeError($t("status-card-renderer.text_e6032cd017"));
 }

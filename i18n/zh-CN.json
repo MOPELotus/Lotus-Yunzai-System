@@ -1,0 +1,331 @@
+{
+  "language": "zh-CN",
+  "name": "简体中文",
+  "namespace": "system",
+  "description": "系统命令",
+  "sections": {
+    "index": {
+      "description": "系统命令",
+      "source": "plugins/system/index.ts"
+    },
+    "status-card-data": {
+      "description": "系统命令：运行状态 · 图片卡片",
+      "source": "plugins/system/status-card-data.ts"
+    },
+    "status-card-details": {
+      "description": "系统命令：运行状态 · 图片卡片",
+      "source": "plugins/system/status-card-details.ts"
+    },
+    "status-card-renderer": {
+      "description": "系统命令：运行状态 · 图片卡片",
+      "source": "plugins/system/status-card-renderer.ts"
+    },
+    "status-monitor-io": {
+      "description": "系统命令：运行状态",
+      "source": "plugins/system/status-monitor-io.ts"
+    },
+    "status-monitor-renderer": {
+      "description": "系统命令：运行状态",
+      "source": "plugins/system/status-monitor-renderer.ts"
+    },
+    "status-network-probes": {
+      "description": "系统命令：运行状态 · 网络",
+      "source": "plugins/system/status-network-probes.ts"
+    },
+    "version-card-data": {
+      "description": "系统命令：图片卡片",
+      "source": "plugins/system/version-card-data.ts"
+    },
+    "version-card-renderer": {
+      "description": "系统命令：图片卡片",
+      "source": "plugins/system/version-card-renderer.ts"
+    }
+  },
+  "messages": {
+    "index.text_0f5e7ba3d2": "内置模块",
+    "index.text_12e1484d50": "JS 堆内存　{value1} / {value2} MiB",
+    "index.text_12ead09c08": "消息统计当前不可用。",
+    "index.text_1796c1cb68": "[渲染] 运行状态 {renderer} {api} {device}",
+    "index.text_19c83583f3": "用法：#监控。",
+    "index.text_2073812db6": "[渲染] 运行监控 {renderer} {api} {device}",
+    "index.text_24036f3fd3": "暂无插件加载记录",
+    "index.text_368320762b": "宿主提交　{revision}{modified}",
+    "index.text_47ea7e256d": "点击查看帮助：\n{helpUrl}",
+    "index.text_53fd643fa6": "开发构建",
+    "index.text_5b189bd3b8": "{minutes} 分钟 ",
+    "index.text_61017dad72": "当前会话无法读取状态 Pro。",
+    "index.text_63cffd447f": "提交号不可用",
+    "index.text_6d74c99768": "常驻内存　{value1} MiB",
+    "index.text_738e2da28a": "Lotus-Yunzai 版本",
+    "index.text_780ac58fe9": "暂无内置模块版本记录",
+    "index.text_83015f8861": "插件加载用时",
+    "index.text_8bb0d9bfa9": "运行环境　Bun {version} · {platform}/{arch}",
+    "index.text_8efa8cd3f5": "暂无在线账号",
+    "index.text_907d967137": "Lotus-Yunzai 正在运行（Bun {version}）",
+    "index.text_969e87756b": "{hours} 小时 ",
+    "index.text_b2bbf4f815": "状态 Pro 仅供当前机器人的主人私聊或授权终端查看。",
+    "index.text_c151a6d094": "账号在线时长",
+    "index.text_c453df6435": "（有本地修改）",
+    "index.text_c90078a108": "Lotus-Yunzai 运行诊断",
+    "index.text_cc5360ff29": "{value1}{value2}{value3} 秒",
+    "index.text_d8679affb4": "[system] 状态",
+    "index.text_d98ab1905a": "[渲染] 版本 {renderer} {api} {device}",
+    "index.text_eaa4764faf": "宿主版本　{version}",
+    "index.text_f07d382151": "用法：#状态Pro。",
+    "index.text_f20304d428": "Lotus-Yunzai 版本 {version}",
+    "index.text_f71063a4e8": "运行时间　{value1} 秒",
+    "status-card-data.text_190c51debe": "{length} 核",
+    "status-card-data.text_4097c47b8d": "进程常驻内存",
+    "status-card-data.text_46e9e714be": "缓冲区/缓存 {value1}",
+    "status-card-details.text_01c7744ff5": "客户端 {value1}　阻塞 {value2}　累计 {value3}",
+    "status-card-details.text_070b144e86": "数据卷 {i}",
+    "status-card-details.text_0c8c71a8c4": "主板",
+    "status-card-details.text_1150037c93": "Redis 服务器",
+    "status-card-details.text_26b9c4d244": "包",
+    "status-card-details.text_2b1548cd60": "进程数",
+    "status-card-details.text_2f517a7f21": "键数 {keys}　有期限 {expires}　平均 TTL {averageTtl} ms",
+    "status-card-details.text_416baf7ad2": "内核",
+    "status-card-details.text_42ee2863b6": "根目录",
+    "status-card-details.text_43b8de30fe": "处理器",
+    "status-card-details.text_5b50d7c4b5": "系统",
+    "status-card-details.text_5f76b2bf82": "版本",
+    "status-card-details.text_5f99b7a110": "累计命令",
+    "status-card-details.text_663e388486": "进程负载",
+    "status-card-details.text_6acb471003": "磁盘读写",
+    "status-card-details.text_7252c30a04": "{value1}{percentage}　峰值 {value3}{value4}",
+    "status-card-details.text_7d8f8c37ec": "内存",
+    "status-card-details.text_84bd004d86": "　上限 ",
+    "status-card-details.text_84cb5350f1": "{value1}　运行 {value2} 秒",
+    "status-card-details.text_8b784b6288": "架构",
+    "status-card-details.text_9bfb43ada1": "进程",
+    "status-card-details.text_a157197299": "分辨率（支持）",
+    "status-card-details.text_a4e0c07e95": "网络信息",
+    "status-card-details.text_a5574109f0": "连接",
+    "status-card-details.text_a6880fdafb": "读 {value1}/s　写 {value2}/s",
+    "status-card-details.text_b3c5c0e4ae": "全部 {length}　运行 {running}　休眠 {sleeping}　阻塞 {blocked}　其他 {other}",
+    "status-card-details.text_b98e46cb02": "{value1} 逻辑核心",
+    "status-card-details.text_c554419494": "上传 {value1}　下载 {value2}",
+    "status-card-details.text_c6252615ab": "当前速率",
+    "status-card-details.text_d3de1e9672": "上传 {value1}/s　下载 {value2}/s",
+    "status-card-details.text_d5834c7625": "累计流量",
+    "status-card-details.text_d606fcd461": "显存 {value1} / {value2}",
+    "status-card-details.text_ddc00e6620": "物理内存",
+    "status-card-details.text_e1af2af03d": "{value1} / {value2}　使用 {percentage}%　可用 {value4}",
+    "status-card-details.text_e2a76ef1f1": "终端",
+    "status-card-details.text_e87d9f23a3": "主机",
+    "status-card-details.text_f1a586cb6b": "硬盘信息",
+    "status-card-renderer.text_0224c3f667": "主机名",
+    "status-card-renderer.text_05b5d32c72": "发",
+    "status-card-renderer.text_0cd22cdd85": "网络流量",
+    "status-card-renderer.text_145219e726": "隐藏",
+    "status-card-renderer.text_339bacf403": "收",
+    "status-card-renderer.text_39c3a96ff8": "{value1}天 {value2}:{value3}:{value4}",
+    "status-card-renderer.text_4673a23061": "下载",
+    "status-card-renderer.text_477581b84e": "客户端",
+    "status-card-renderer.text_5986e9d976": "运行时间",
+    "status-card-renderer.text_5b1cf9ee4a": "Bot已运行 {value1}",
+    "status-card-renderer.text_5b50d7c4b5": "系统",
+    "status-card-renderer.text_663e388486": "进程负载",
+    "status-card-renderer.text_8b6ff49851": "时间",
+    "status-card-renderer.text_97b31b5d63": "网络",
+    "status-card-renderer.text_9e07e3c053": "上传",
+    "status-card-renderer.text_a4d1441486": "机器人",
+    "status-card-renderer.text_af43d2e34f": "群员",
+    "status-card-renderer.text_b3bc288137": "插件数",
+    "status-card-renderer.text_b9b1480dd6": "好友",
+    "status-card-renderer.text_c85c789152": "资源使用",
+    "status-card-renderer.text_d24c10d37d": "图片",
+    "status-card-renderer.text_daa6d02a55": "资源",
+    "status-card-renderer.text_dc1e7cb9e3": "Redis 连接数",
+    "status-card-renderer.text_de7b72a3f8": "磁盘",
+    "status-card-renderer.text_e6032cd017": "状态图超过当前会话图片大小上限。",
+    "status-card-renderer.text_e806fbbe8e": "插件",
+    "status-card-renderer.text_f3f8bcf3f5": "群组",
+    "status-monitor-io.text_1eda52a350": "采样期间设备已变更",
+    "status-monitor-io.text_535b69c7a0": "网络计数不可用",
+    "status-monitor-io.text_d0aaf13bde": "磁盘计数不可用",
+    "status-monitor-io.text_d2e51e1fc8": "设备标识不可用",
+    "status-monitor-renderer.text_178edcf850": "采样已暂停 · {length} 条历史记录",
+    "status-monitor-renderer.text_1cc22077b8": "下行",
+    "status-monitor-renderer.text_2b60680db1": "暂无可核验的吞吐采样",
+    "status-monitor-renderer.text_429de5142e": "最近采样缺失",
+    "status-monitor-renderer.text_478fbe8b85": "网络　{value1}",
+    "status-monitor-renderer.text_50961ae20e": "当前已关闭持续采样。",
+    "status-monitor-renderer.text_5830b5ea4d": "网络吞吐",
+    "status-monitor-renderer.text_65e09e4dfa": "运行监控",
+    "status-monitor-renderer.text_6e2660bac2": "暂无采样",
+    "status-monitor-renderer.text_6ed4dfe2d0": "最近一次采样无有效数据",
+    "status-monitor-renderer.text_7c7a3cda2c": "读",
+    "status-monitor-renderer.text_8cf8613999": "Lotus-Yunzai 监控",
+    "status-monitor-renderer.text_9043e17f4f": "上行",
+    "status-monitor-renderer.text_9bc0d35ad3": "CPU · 内存 · 网络 · 磁盘 / {length} 次采样",
+    "status-monitor-renderer.text_b75398c5eb": "暂无可核验采样",
+    "status-monitor-renderer.text_d6e489ebe7": "磁盘　{value1}",
+    "status-monitor-renderer.text_e2b9dfa7a5": "磁盘 I/O",
+    "status-monitor-renderer.text_e3e61a9b9b": "等待首次采样。",
+    "status-monitor-renderer.text_eecaf7bb13": "写",
+    "status-monitor-renderer.text_fb4f501970": "有效采样　{length} 次",
+    "status-network-probes.text_357ffd8c5b": "不可探测该地址",
+    "status-network-probes.text_6b1a7d3369": "未配置探测代理",
+    "status-network-probes.text_89c4766afc": "连接失败",
+    "status-network-probes.text_c2b7d1d160": "网络测试",
+    "status-network-probes.text_e512cf016f": "超时",
+    "version-card-data.text_0f5e7ba3d2": "内置模块",
+    "version-card-data.text_368320762b": "宿主提交　{revision}{modified}",
+    "version-card-data.text_53fd643fa6": "开发构建",
+    "version-card-data.text_63cffd447f": "提交号不可用",
+    "version-card-data.text_780ac58fe9": "暂无内置模块版本记录",
+    "version-card-data.text_c453df6435": "（有本地修改）",
+    "version-card-renderer.text_2da3906a24": "版本信息",
+    "status-card-renderer.text_3867834e77": "Lotus-Yunzai",
+    "status-card-renderer.text_d41c915582": "Created By Lotus-Yunzai"
+  },
+  "parameters": {
+    "index.text_8bb0d9bfa9": {
+      "version": "Bun.version",
+      "platform": "process.platform",
+      "arch": "process.arch"
+    },
+    "index.text_f71063a4e8": {
+      "value1": "Math.floor(process.uptime())"
+    },
+    "index.text_6d74c99768": {
+      "value1": "mib(rss)"
+    },
+    "index.text_12e1484d50": {
+      "value1": "mib(heapUsed)",
+      "value2": "mib(heapTotal)"
+    },
+    "index.text_f20304d428": {
+      "version": "version"
+    },
+    "index.text_eaa4764faf": {
+      "version": "version"
+    },
+    "index.text_368320762b": {
+      "revision": "revision",
+      "modified": "modified"
+    },
+    "index.text_969e87756b": {
+      "hours": "hours"
+    },
+    "index.text_5b189bd3b8": {
+      "minutes": "minutes"
+    },
+    "index.text_cc5360ff29": {
+      "value1": "hours ? `${hours} 小时 ` : \"\"",
+      "value2": "minutes ? `${minutes} 分钟 ` : \"\"",
+      "value3": "elapsed % 60"
+    },
+    "index.text_1796c1cb68": {
+      "renderer": "result.engine.renderer",
+      "api": "result.engine.api",
+      "device": "result.engine.device"
+    },
+    "index.text_907d967137": {
+      "version": "Bun.version"
+    },
+    "index.text_2073812db6": {
+      "renderer": "result.engine.renderer",
+      "api": "result.engine.api",
+      "device": "result.engine.device"
+    },
+    "index.text_d98ab1905a": {
+      "renderer": "result.engine.renderer",
+      "api": "result.engine.api",
+      "device": "result.engine.device"
+    },
+    "index.text_47ea7e256d": {
+      "helpUrl": "helpUrl"
+    },
+    "status-card-data.text_190c51debe": {
+      "length": "cores.length"
+    },
+    "status-card-data.text_46e9e714be": {
+      "value1": "gib(cache)"
+    },
+    "status-card-details.text_070b144e86": {
+      "i": "i"
+    },
+    "status-card-details.text_e1af2af03d": {
+      "value1": "bytes(used)",
+      "value2": "bytes(total)",
+      "percentage": "percentage",
+      "value4": "bytes(info.bavail * info.bsize)"
+    },
+    "status-card-details.text_d606fcd461": {
+      "value1": "bytes(usedMib * 1024 ** 2)",
+      "value2": "bytes(capacityMib * 1024 ** 2)"
+    },
+    "status-card-details.text_b3c5c0e4ae": {
+      "length": "full.length",
+      "running": "counts.running",
+      "sleeping": "counts.sleeping",
+      "blocked": "counts.blocked",
+      "other": "counts.other"
+    },
+    "status-card-details.text_84cb5350f1": {
+      "value1": "value(\"version\")",
+      "value2": "value(\"uptime\")"
+    },
+    "status-card-details.text_7252c30a04": {
+      "value1": "used === undefined ? \"—\" : bytes(used)",
+      "percentage": "percentage",
+      "value3": "redis.peakMemory === undefined ? \"—\" : bytes(redis.peakMemory)",
+      "value4": "redis.maxMemory ? \"　上限 \" + bytes(redis.maxMemory) : \"\""
+    },
+    "status-card-details.text_01c7744ff5": {
+      "value1": "value(\"clients\")",
+      "value2": "value(\"blocked\")",
+      "value3": "value(\"connections\")"
+    },
+    "status-card-details.text_2f517a7f21": {
+      "keys": "db.keys",
+      "expires": "db.expires",
+      "averageTtl": "db.averageTtl"
+    },
+    "status-card-details.text_b98e46cb02": {
+      "value1": "availableParallelism()"
+    },
+    "status-card-details.text_a6880fdafb": {
+      "value1": "bytes(disk[0])",
+      "value2": "bytes(disk[1])"
+    },
+    "status-card-details.text_d3de1e9672": {
+      "value1": "bytes(network[0])",
+      "value2": "bytes(network[1])"
+    },
+    "status-card-details.text_c554419494": {
+      "value1": "bytes(traffic[0])",
+      "value2": "bytes(traffic[1])"
+    },
+    "status-card-renderer.text_39c3a96ff8": {
+      "value1": "part(Math.floor(elapsed / 86400))",
+      "value2": "part(Math.floor(elapsed / 3600) % 24)",
+      "value3": "part(Math.floor(elapsed / 60) % 60)",
+      "value4": "part(elapsed % 60)"
+    },
+    "status-card-renderer.text_5b1cf9ee4a": {
+      "value1": "duration(account.seconds)"
+    },
+    "status-monitor-renderer.text_fb4f501970": {
+      "length": "samples.length"
+    },
+    "status-monitor-renderer.text_478fbe8b85": {
+      "value1": "throughput(\"network\", \"上行\", \"下行\")"
+    },
+    "status-monitor-renderer.text_d6e489ebe7": {
+      "value1": "throughput(\"disk\", \"读\", \"写\")"
+    },
+    "status-monitor-renderer.text_9bc0d35ad3": {
+      "length": "samples.length"
+    },
+    "status-monitor-renderer.text_178edcf850": {
+      "length": "samples.length"
+    },
+    "version-card-data.text_368320762b": {
+      "revision": "revision",
+      "modified": "modified"
+    }
+  }
+}

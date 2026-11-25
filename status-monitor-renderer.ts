@@ -1,3 +1,6 @@
+import { createTranslator as createTextTranslator } from "../../packages/i18n/index.ts";
+import messageCatalog from "./i18n/zh-CN.json";
+const $t = createTextTranslator("system", messageCatalog.messages);
 import { drawInfoText, infoCardColors, renderInfoCard } from "@lotus-yunzai/skia/info-card";
 import type { CanvasRenderingContext2D as Context } from "skia-canvas";
 import type { StatusMonitorSample } from "./status-monitor.ts";
@@ -29,18 +32,18 @@ export function statusMonitorText(samples: readonly StatusMonitorSample[], enabl
   const throughput = (key: "network" | "disk", first: string, second: string) => {
     const rates = latest?.[key];
     if (rates) return `${first} ${formatRate(rates[0])}　${second} ${formatRate(rates[1])}`;
-    return samples.some(row => row[key]) ? "最近一次采样无有效数据" : "暂无可核验采样";
+    return samples.some(row => row[key]) ? $t("status-monitor-renderer.text_6ed4dfe2d0") : $t("status-monitor-renderer.text_b75398c5eb");
   };
   return [
-    "Lotus-Yunzai 监控",
+    $t("status-monitor-renderer.text_8cf8613999"),
     ...(samples.length ? [
-      `有效采样　${samples.length} 次`,
-      `CPU　${latestCpu === undefined ? "暂无采样" : latestCpu.toFixed(1) + "%"}`,
-      `RAM　${latestRam === undefined ? "暂无采样" : bytes(latestRam)}`,
-      `网络　${throughput("network", "上行", "下行")}`,
-      `磁盘　${throughput("disk", "读", "写")}`,
-    ] : enabled ? ["等待首次采样。"] : []),
-    ...(!enabled ? ["当前已关闭持续采样。"] : []),
+      $t("status-monitor-renderer.text_fb4f501970", { "length": samples.length }),
+      `CPU　${latestCpu === undefined ? $t("status-monitor-renderer.text_6e2660bac2") : latestCpu.toFixed(1) + "%"}`,
+      `RAM　${latestRam === undefined ? $t("status-monitor-renderer.text_6e2660bac2") : bytes(latestRam)}`,
+      $t("status-monitor-renderer.text_478fbe8b85", { "value1": throughput("network", $t("status-monitor-renderer.text_9043e17f4f"), $t("status-monitor-renderer.text_1cc22077b8")) }),
+      $t("status-monitor-renderer.text_d6e489ebe7", { "value1": throughput("disk", $t("status-monitor-renderer.text_7c7a3cda2c"), $t("status-monitor-renderer.text_eecaf7bb13")) }),
+    ] : enabled ? [$t("status-monitor-renderer.text_e3e61a9b9b")] : []),
+    ...(!enabled ? [$t("status-monitor-renderer.text_50961ae20e")] : []),
   ].join("\n");
 }
 
@@ -124,14 +127,14 @@ function chart(ctx: Context, samples: readonly StatusMonitorSample[],
   ctx.beginPath();
   ctx.roundRect(25, y, width - 60, 322, 12);
   ctx.fill();
-  drawInfoText(ctx, [key === "network" ? "网络吞吐" : key === "disk" ? "磁盘 I/O" : key.toUpperCase()],
+  drawInfoText(ctx, [key === "network" ? $t("status-monitor-renderer.text_5830b5ea4d") : key === "disk" ? $t("status-monitor-renderer.text_e2b9dfa7a5") : key.toUpperCase()],
     41, y + 11, { size: 20, color: infoCardColors.gold });
   ctx.font = `12px ${chartFont}`;
   ctx.textBaseline = "alphabetic";
 
   const colors = [lineColor, secondaryColor];
   const areas = ["rgba(46,199,201,0.72)", "rgba(182,162,222,0.68)"];
-  const labels = key === "network" ? ["上行", "下行"] : key === "disk" ? ["读", "写"] : [];
+  const labels = key === "network" ? [$t("status-monitor-renderer.text_9043e17f4f"), $t("status-monitor-renderer.text_1cc22077b8")] : key === "disk" ? [$t("status-monitor-renderer.text_7c7a3cda2c"), $t("status-monitor-renderer.text_eecaf7bb13")] : [];
   const series: Series[] = [];
   for (let index = 0; index < (io ? 2 : 1); index++) {
     const segments: Reading[][] = [];
@@ -152,7 +155,7 @@ function chart(ctx: Context, samples: readonly StatusMonitorSample[],
     if (samples.some(row => row[key]) && !samples.at(-1)?.[key]) {
       ctx.fillStyle = infoCardColors.muted;
       ctx.textAlign = "right";
-      ctx.fillText("最近采样缺失", 585, y + 28);
+      ctx.fillText($t("status-monitor-renderer.text_429de5142e"), 585, y + 28);
       ctx.textAlign = "left";
     }
   }
@@ -160,7 +163,7 @@ function chart(ctx: Context, samples: readonly StatusMonitorSample[],
   if (!readings.length) {
     ctx.textAlign = "center";
     ctx.fillStyle = infoCardColors.muted;
-    ctx.fillText(io ? "暂无可核验的吞吐采样" : "暂无采样", width / 2, y + 160);
+    ctx.fillText(io ? $t("status-monitor-renderer.text_2b60680db1") : $t("status-monitor-renderer.text_6e2660bac2"), width / 2, y + 160);
     ctx.textAlign = "left";
     return;
   }
@@ -295,9 +298,9 @@ function drawPeak(ctx: Context, { point, label, color, radius: marker, x: marker
 }
 
 export function renderStatusMonitor(samples: readonly StatusMonitorSample[], enabled = true) {
-  const metadata = enabled ? `CPU · 内存 · 网络 · 磁盘 / ${samples.length} 次采样`
-    : `采样已暂停 · ${samples.length} 条历史记录`;
-  return renderInfoCard({ title: "运行监控", metadata, width }, ({ x, y }) => ({
+  const metadata = enabled ? $t("status-monitor-renderer.text_9bc0d35ad3", { "length": samples.length })
+    : $t("status-monitor-renderer.text_178edcf850", { "length": samples.length });
+  return renderInfoCard({ title: $t("status-monitor-renderer.text_65e09e4dfa"), metadata, width }, ({ x, y }) => ({
     height: 4 * 342 - 20,
     draw(ctx) {
       ctx.save();
